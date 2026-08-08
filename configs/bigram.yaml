@@ -1,0 +1,7 @@
+model:
+  name: bigram
+  vocab_size: 256
+training:
+  batch_size: 32
+  learning_rate: 0.001
+  max_steps: 5000

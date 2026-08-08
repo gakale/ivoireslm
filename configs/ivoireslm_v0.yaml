@@ -1,0 +1,10 @@
+model:
+  name: ivoireslm_v0
+  n_embd: 256
+  n_head: 8
+  n_layer: 8
+  block_size: 256
+training:
+  batch_size: 32
+  learning_rate: 0.0003
+  max_steps: 50000

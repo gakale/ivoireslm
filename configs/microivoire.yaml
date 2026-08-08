@@ -1,0 +1,10 @@
+model:
+  name: microivoire
+  n_embd: 128
+  n_head: 4
+  n_layer: 4
+  block_size: 128
+training:
+  batch_size: 32
+  learning_rate: 0.0003
+  max_steps: 10000

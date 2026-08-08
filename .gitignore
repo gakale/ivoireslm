@@ -1,0 +1,32 @@
+# Données et artefacts générés
+data/raw/originals/*
+data/extracted/*
+data/cleaned/*
+data/splits/*
+data/tokenized/*
+checkpoints/*
+logs/*
+reports/data/*
+reports/training/*
+reports/evaluation/*
+
+# Conserver la structure des répertoires dans Git
+!data/raw/originals/.gitkeep
+!data/manifests/.gitkeep
+!data/extracted/.gitkeep
+!data/cleaned/.gitkeep
+!data/splits/.gitkeep
+!data/tokenized/.gitkeep
+!checkpoints/.gitkeep
+!logs/.gitkeep
+!reports/data/.gitkeep
+!reports/training/.gitkeep
+!reports/evaluation/.gitkeep
+
+# Python et Jupyter
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
