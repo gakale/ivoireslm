@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+import math
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
@@ -33,3 +35,16 @@ def test_render_sentence_without_optional_type():
     assert "Production pêche artisanale" in sentence
     assert "type" not in sentence
     assert sentence.endswith("une quantité de 25 653 tonnes.")
+
+
+def test_render_sentence_treats_pandas_nan_as_missing_type():
+    sentence = render_fish_meat_trade_sentence(
+        2014,
+        "Production",
+        "Pêche continentale",
+        math.nan,
+        "une quantité de 40 255 tonnes",
+    )
+
+    assert "nan" not in sentence
+    assert "type" not in sentence
