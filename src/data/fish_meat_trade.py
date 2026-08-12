@@ -5,6 +5,6 @@ def render_fish_meat_trade_sentence(
         f"En {year}, dans la catégorie « {category} » et la "
         f"sous-catégorie « {subcategory} »"
     )
-    if item_type:
+    if isinstance(item_type, str) and item_type.strip():
         return f"{context}, le type « {item_type} » présente {formatted_value}."
     return f"{context}, la donnée présente {formatted_value}."
