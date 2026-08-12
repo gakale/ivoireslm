@@ -24,7 +24,9 @@ def format_number_fr(value: Any, *, max_decimals: int = 2) -> str:
     if not math.isfinite(number):
         return "non renseigné"
 
-    rendered = f"{number:,.{max_decimals}f}".rstrip("0").rstrip(".")
+    rendered = f"{number:,.{max_decimals}f}"
+    if "." in rendered:
+        rendered = rendered.rstrip("0").rstrip(".")
     return rendered.replace(",", "\u202f").replace(".", ",")
 
 
