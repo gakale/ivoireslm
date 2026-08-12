@@ -8,6 +8,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
 from data.common import format_number_fr, sha256_text, upsert_jsonl, write_json
+from data.fish_meat_trade import render_fish_meat_trade_sentence
 
 
 ROOT = Path.home() / "ivoireslm-storage"
@@ -119,7 +120,6 @@ positive_value = numeric_value & (work["value_parsed"] > 0)
 required_labels = (
     work["cat_gorie"].notna()
     & work["sous_cat_gorie"].notna()
-    & work["type"].notna()
 )
 usable_mask = (
     valid_year & explicit_status & positive_value & required_labels
@@ -149,9 +149,13 @@ for row in usable.itertuples(index=False):
     value = format_number_fr(row.value_parsed, max_decimals=3)
     formatted_value = value_template.format(value=value)
     lines.append(
-        f"En {row.year}, dans la catégorie « {row.cat_gorie} » et la "
-        f"sous-catégorie « {row.sous_cat_gorie} », le type « {row.type} » "
-        f"présente {formatted_value}."
+        render_fish_meat_trade_sentence(
+            row.year,
+            row.cat_gorie,
+            row.sous_cat_gorie,
+            row.type,
+            formatted_value,
+        )
     )
     facts.append(
         {
@@ -211,6 +215,7 @@ report = {
     "rows_with_missing_or_non_numeric_value": int((~numeric_value).sum()),
     "rows_with_nonpositive_value": int((numeric_value & ~positive_value).sum()),
     "rows_with_missing_required_labels": int((~required_labels).sum()),
+    "usable_rows_with_missing_optional_type": int(usable["type"].isna().sum()),
     "category_counts": category_counts,
     "status_counts": status_counts,
     "sentences_generated": len(lines),
