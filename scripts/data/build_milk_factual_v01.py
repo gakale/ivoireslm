@@ -3,12 +3,10 @@ from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(
-    0,
-    str(Path.home() / "ivoireslm-structured")
-)
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
-from lib.common import (
+from data.common import (
     format_number_fr,
     sha256_text,
     upsert_jsonl,
