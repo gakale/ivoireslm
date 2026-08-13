@@ -22,7 +22,10 @@ from data.corpus import (
 
 
 STORAGE = Path.home() / "ivoireslm-storage"
-LEGACY = Path("/home/gnakaleroland/ivoireslm-storage")
+LEGACY = STORAGE / "imports" / "legacy_validated_2026-08-13"
+LEGACY_ORIGINAL_DERIVED = Path(
+    "/home/gnakaleroland/ivoireslm-storage/derived/structured_factual_v0.1"
+)
 VERSION = "ivoireslm_corpus_v0.1.0"
 OUTPUT = STORAGE / "corpora" / VERSION
 CURRENT_MANIFEST = STORAGE / "manifests" / "structured_factual_v0.1.jsonl"
@@ -130,6 +133,12 @@ def collect_records():
         record = dict(legacy_record)
         record.update(override)
         record["document_id"] = override.get("document_id", legacy_id)
+        original_path = source_path(record)
+        relative_path = original_path.relative_to(LEGACY_ORIGINAL_DERIVED)
+        record["output_path"] = str(
+            LEGACY / "derived" / "structured_factual_v0.1" / relative_path
+        )
+        record.pop("file_path", None)
         record["rights_tier"] = record.get("rights_tier") or "A_REDISTRIBUTABLE"
         record["license"] = record.get("license") or "Open government data; source manifest rights tier A_REDISTRIBUTABLE"
         record["group_id"] = record.get("group_id") or record["source_id"]
