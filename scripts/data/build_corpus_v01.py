@@ -1,5 +1,6 @@
 import json
 import hashlib
+import os
 import re
 import shutil
 import sys
@@ -27,7 +28,8 @@ LEGACY = STORAGE / "imports" / "legacy_validated_2026-08-13"
 LEGACY_ORIGINAL_DERIVED = Path(
     "/home/gnakaleroland/ivoireslm-storage/derived/structured_factual_v0.1"
 )
-VERSION = "ivoireslm_corpus_v0.1.0"
+VERSION = os.environ.get("IVOIRESLM_CORPUS_VERSION", "ivoireslm_corpus_v0.1.0")
+INCLUDE_WDI = os.environ.get("IVOIRESLM_INCLUDE_WDI", "0") == "1"
 OUTPUT = STORAGE / "corpora" / VERSION
 CURRENT_MANIFEST = STORAGE / "manifests" / "structured_factual_v0.1.jsonl"
 LEGACY_MANIFEST = LEGACY / "manifests" / "structured_factual_v0.1.jsonl"
@@ -52,6 +54,17 @@ LEGACY_ALLOWED = {
     "civ_livestock_flows_2024_v0.1": {"domain": "agriculture", "atomic_facts": 62},
     "civ_farmgate_prices_2021_2023_v0.1": {"domain": "agriculture", "atomic_facts": 101},
 }
+
+CURRENT_ALLOWED = {
+    "civ_milk_production_2024_v0.1",
+    "civ_rainfall_stations_2022_2023_v0.1",
+    "civ_market_prices_2020_2022_v0.1",
+    "civ_food_prices_2022_v0.1",
+    "civ_rgph2021_population_households_v0.1",
+    "civ_fish_meat_trade_1999_2014_v0.1",
+}
+if INCLUDE_WDI:
+    CURRENT_ALLOWED.add("civ_worldbank_wdi_1960_2025_v0.1")
 
 QUARANTINE = [
     {
@@ -149,6 +162,8 @@ def source_path(record):
 def collect_records():
     records = []
     for record in read_jsonl(CURRENT_MANIFEST):
+        if record["document_id"] not in CURRENT_ALLOWED:
+            continue
         records.append(
             dict(
                 record,
@@ -177,8 +192,11 @@ def collect_records():
         record["source_manifest_path"] = str(LEGACY_MANIFEST)
         records.append(record)
     records.sort(key=lambda row: row["document_id"])
-    if len(records) != 13:
-        raise ValueError(f"13 documents autorisés attendus, trouvé {len(records)}")
+    expected_documents = 14 if INCLUDE_WDI else 13
+    if len(records) != expected_documents:
+        raise ValueError(
+            f"{expected_documents} documents autorisés attendus, trouvé {len(records)}"
+        )
     return records
 
 
@@ -251,7 +269,7 @@ def main():
             "group_id": source.get("group_id", source["source_id"]),
             "title": source.get("title", source["document_id"]),
             "country_code": "CIV",
-            "language": "fr",
+            "language": source.get("language", "fr"),
             "domain": source.get("domain") or source.get("primary_domain") or "unknown",
             "content_type": "deterministic_structured_factual_text",
             "rights_status": "open_license" if source.get("license") else "redistributable_source",
@@ -366,7 +384,9 @@ def main():
     }
     write_json(reports_dir / "quality_report.json", report)
 
-    dataset_card = f"""# IvoireSLM Corpus v0.1.0
+    build_script = "build_corpus_v02.py" if INCLUDE_WDI else "build_corpus_v01.py"
+    audit_script = "audit_corpus_v02.py" if INCLUDE_WDI else "audit_corpus_v01.py"
+    dataset_card = f"""# {VERSION}
 
 Corpus factuel ivoirien nettoyé et traçable, construit le 13 août 2026.
 
@@ -406,8 +426,8 @@ Depuis le dépôt IvoireSLM sur la VM :
 
 ```bash
 source ~/venv/bin/activate
-python3 scripts/data/build_corpus_v01.py
-python3 scripts/data/audit_corpus_v01.py
+python3 scripts/data/{build_script}
+python3 scripts/data/{audit_script}
 ```
 """
     (OUTPUT / "DATASET_CARD.md").write_text(dataset_card, encoding="utf-8")
