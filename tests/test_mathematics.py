@@ -12,6 +12,11 @@ def test_clean_latex_removes_displaystyle_wrapper_once():
     assert clean_latex(r"{\displaystyle x^2 + y^2}") == "$x^2 + y^2$"
 
 
+def test_clean_latex_repairs_legacy_broken_math_boundaries():
+    broken = r"a_n=o(u_n)/math>et<math>b_n=o(u_n)"
+    assert clean_latex(broken) == "$a_n=o(u_n)$ et $b_n=o(u_n)$"
+
+
 def test_rendered_math_html_keeps_text_and_single_latex_formula():
     html = r"""
     <h2>Définition</h2>
