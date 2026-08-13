@@ -275,10 +275,14 @@ def main():
             "rights_status": "open_license" if source.get("license") else "redistributable_source",
             "rights_tier": "A_REDISTRIBUTABLE",
             "license": source.get("license"),
+            "license_url": source.get("license_url"),
+            "attribution": source.get("attribution"),
+            "dataset_url": source.get("dataset_url"),
             "split": split,
             "source_path": str(path),
             "source_manifest_path": source["source_manifest_path"],
             "source_table": source.get("source_table"),
+            "source_table_sha256": source.get("source_table_sha256"),
             "generation_method": source.get("generation_method"),
             "corpus_path": str(destination),
             "source_sha256": raw_hash,
@@ -288,7 +292,7 @@ def main():
             "lines": len(kept_lines),
             "atomic_facts": source.get("atomic_facts", len(kept_lines)),
             "provenance_generation": source["provenance_generation"],
-            "pipeline_status": "accepted_clean_v0.1.0",
+            "pipeline_status": f"accepted_clean_{VERSION}",
         }
         corpus_records.append(record)
 
@@ -384,8 +388,17 @@ def main():
     }
     write_json(reports_dir / "quality_report.json", report)
 
-    build_script = "build_corpus_v02.py" if INCLUDE_WDI else "build_corpus_v01.py"
-    audit_script = "audit_corpus_v02.py" if INCLUDE_WDI else "audit_corpus_v01.py"
+    if INCLUDE_FAOSTAT:
+        build_script, audit_script = "build_corpus_v03.py", "audit_corpus_v03.py"
+    elif INCLUDE_WDI:
+        build_script, audit_script = "build_corpus_v02.py", "audit_corpus_v02.py"
+    else:
+        build_script, audit_script = "build_corpus_v01.py", "audit_corpus_v01.py"
+    attributions = "\n".join(
+        f"- {row['document_id']} : {row['attribution']}"
+        for row in corpus_records
+        if row.get("attribution")
+    )
     dataset_card = f"""# {VERSION}
 
 Corpus factuel ivoirien nettoyé et traçable, construit le 13 août 2026.
@@ -416,9 +429,13 @@ Le rapport vérifie les hashes sources, les doublons, les fuites entre splits, l
 
 Les livres sous copyright, documents aux droits inconnus, copies tierces, métadonnées Google Books, transcriptions non consenties et l'ancien pool contaminé ne font pas partie du corpus officiel. Ils sont conservés séparément pour audit ou demande d'autorisation. Les onze textes narratifs data.gouv.ci restent en révision car ils contiennent des interprétations non sourcées et recouvrent les mêmes tableaux que les textes factuels.
 
+## Attributions explicites
+
+{attributions or '- Voir le champ `license` de chaque entrée dans `manifests/documents.jsonl`.'}
+
 ## Limites
 
-Cette version est très spécialisée et très déséquilibrée vers les prix de marché. Elle convient pour tester le pipeline, entraîner un tokenizer pédagogique et de petits modèles expérimentaux. Elle n'est pas assez diverse pour un modèle généraliste. Il faut acquérir davantage de textes naturels ivoiriens explicitement autorisés, notamment littérature, administration, éducation, santé, médias et langues locales.
+Cette version reste spécialisée dans les données factuelles structurées et comporte des libellés officiels anglais provenant de WDI et FAOSTAT. Elle convient pour entraîner le tokenizer caractère de la roadmap et de petits modèles expérimentaux, mais pas encore pour un modèle généraliste. Il faut acquérir davantage de textes naturels ivoiriens explicitement autorisés, notamment littérature, administration, éducation, santé, médias et langues locales.
 
 ## Reproduction
 
