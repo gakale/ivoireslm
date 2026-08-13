@@ -24,6 +24,13 @@ for row in rows:
         errors.append(f"hash invalide: {row['document_id']}")
     if row.get("rights_tier") != "A_REDISTRIBUTABLE":
         errors.append(f"droits non admissibles: {row['document_id']}")
+    attribution_path = row.get("attribution_path")
+    if attribution_path:
+        attribution_path = Path(attribution_path)
+        if not attribution_path.is_file():
+            errors.append(f"attribution absente: {row['document_id']}")
+        elif hashlib.sha256(attribution_path.read_bytes()).hexdigest() != row.get("attribution_sha256"):
+            errors.append(f"hash d’attribution invalide: {row['document_id']}")
 
 split_groups = {}
 for split in ("train", "validation", "test"):
