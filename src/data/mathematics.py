@@ -11,6 +11,9 @@ MALFORMED_MATH_JOIN_RE = re.compile(
     r"(?:</?math>|/?math>)\s*et\s*(?:<math>|math>)", re.IGNORECASE
 )
 RESIDUAL_MATH_TAG_RE = re.compile(r"</?math>|/?math>", re.IGNORECASE)
+MALFORMED_CLOSING_FORMULA_RE = re.compile(
+    r"(?<=et )(\\[^$\n<>]+)</math>", re.IGNORECASE
+)
 EXCLUDED_SECTIONS = {
     "annexes",
     "bibliographie",
@@ -75,4 +78,6 @@ def rendered_math_html_to_text(html):
         if text and sum(character.isalpha() for character in text) >= 3:
             blocks.append(text)
     text = "\n".join(blocks)
+    text = MALFORMED_CLOSING_FORMULA_RE.sub(r"$\1$", text)
+    text = RESIDUAL_MATH_TAG_RE.sub(" ", text)
     return BLANK_RE.sub("\n\n", unicodedata.normalize("NFC", text)).strip()
