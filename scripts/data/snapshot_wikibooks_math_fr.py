@@ -5,11 +5,12 @@ import time
 import urllib.parse
 import urllib.request
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 
 ROOT = Path.home() / "ivoireslm-storage"
-SNAPSHOT = ROOT / "snapshots/wikibooks_math_fr_2026-08-13_v0.2"
+SNAPSHOT = ROOT / "snapshots/wikibooks_math_fr_2026-08-13_v0.3"
 PARTIAL = SNAPSHOT.with_name(SNAPSHOT.name + ".partial")
 API = "https://fr.wikibooks.org/w/api.php"
 ROOT_CATEGORY = "Catégorie:Mathématiques"
@@ -18,7 +19,8 @@ USER_AGENT = "IvoireSLM corpus builder/0.5 (https://github.com/gakale/ivoireslm)
 
 
 def api_call(**parameters):
-    parameters.update(action="query", format="json", formatversion="2")
+    parameters.setdefault("action", "query")
+    parameters.update(format="json", formatversion="2")
     request = urllib.request.Request(
         API + "?" + urllib.parse.urlencode(parameters),
         headers={"User-Agent": USER_AGENT},
@@ -73,34 +75,54 @@ while queue:
         elif member["ns"] == 0:
             pages[member["pageid"]].add(category)
 
-output = PARTIAL / "pages.jsonl"
-records = []
-page_ids = sorted(pages)
-for offset in range(0, len(page_ids), 20):
-    batch = page_ids[offset : offset + 20]
+def parse_page(page_id):
     payload = api_call(
-        prop="extracts|revisions",
+        action="parse",
+        pageid=page_id,
+        prop="text|revid|displaytitle",
+        disableeditsection="1",
+    )["parse"]
+    return {
+        "requested_pageid": page_id,
+        "pageid": payload["pageid"],
+        "title": payload["title"],
+        "revid": payload["revid"],
+        "categories": sorted(pages[page_id]),
+        "html": payload["text"],
+    }
+
+
+output = PARTIAL / "pages.jsonl"
+page_ids = sorted(pages)
+records = []
+with ThreadPoolExecutor(max_workers=6) as executor:
+    futures = {executor.submit(parse_page, page_id): page_id for page_id in page_ids}
+    for index, future in enumerate(as_completed(futures), 1):
+        records.append(future.result())
+        if index % 100 == 0:
+            print(f"Pages rendues : {index}/{len(page_ids)}")
+
+metadata_by_page = {}
+for offset in range(0, len(page_ids), 50):
+    batch = page_ids[offset : offset + 50]
+    payload = api_call(
+        prop="revisions",
         pageids="|".join(map(str, batch)),
-        exlimit="max",
         rvprop="ids|timestamp|sha1",
     )
     for page in payload["query"]["pages"]:
         if page.get("missing"):
             continue
         revision = page["revisions"][0]
-        records.append(
-            {
-                "pageid": page["pageid"],
-                "title": page["title"],
-                "revid": revision["revid"],
-                "parentid": revision.get("parentid"),
-                "revision_timestamp": revision["timestamp"],
-                "revision_sha1": revision["sha1"],
-                "categories": sorted(pages[page["pageid"]]),
-                "html": page.get("extract", ""),
-            }
-        )
-    time.sleep(0.15)
+        metadata_by_page[page["pageid"]] = revision
+
+for record in records:
+    revision = metadata_by_page.get(record["requested_pageid"])
+    if not revision or revision["revid"] != record["revid"]:
+        raise ValueError(f"Révision instable pendant le snapshot : {record['title']}")
+    record["parentid"] = revision.get("parentid")
+    record["revision_timestamp"] = revision["timestamp"]
+    record["revision_sha1"] = revision["sha1"]
 
 records.sort(key=lambda row: row["pageid"])
 pages_with_html = sum(bool(row["html"].strip()) for row in records)
@@ -124,6 +146,7 @@ manifest = {
     "pages_discovered": len(pages),
     "pages_snapshotted": len(records),
     "pages_with_html": pages_with_html,
+    "rendering_method": "MediaWiki action=parse HTML at exact revision id",
     "pages_file": output.name,
     "pages_file_sha256": digest,
     "license": "Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0); GFDL alternative where applicable",
