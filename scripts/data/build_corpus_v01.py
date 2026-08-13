@@ -85,13 +85,13 @@ QUARANTINE = [
     },
     {
         "document_id": "legacy_training_pool_v0.1",
-        "path": "/home/gnakaleroland/ivoireslm-storage/manifests/training_pool_v0.1.jsonl",
+        "path": "imports/legacy_quarantine_2026-08-13/manifests/training_pool_v0.1.jsonl",
         "rights_status": "excluded",
         "reason": "stale_pool_with_630_duplicated_catalog_records",
     },
     {
         "document_id": "legacy_data_gouv_natural_11",
-        "path": "/home/gnakaleroland/ivoireslm-storage/cleaned_canonical_v0.3/data_gouv_ci",
+        "path": "imports/legacy_quarantine_2026-08-13/cleaned_canonical_v0.3/data_gouv_ci",
         "rights_status": "open_license_needs_review",
         "reason": "interpretive_or_speculative_claims_and_overlap_with_factual_sources",
     },
