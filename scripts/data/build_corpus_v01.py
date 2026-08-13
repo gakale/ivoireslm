@@ -279,7 +279,10 @@ def main():
         for kind, matcher in (("email", EMAIL_RE), ("phone", PHONE_RE)):
             for match in matcher.finditer(cleaned):
                 pii_findings.append({"document_id": source["document_id"], "kind": kind, "value": match.group(0)})
-        for marker in ("type « nan »", "None", "�"):
+        markers = ["type « nan »", "�"]
+        if source.get("content_type") == "deterministic_structured_factual_text":
+            markers.append("None")
+        for marker in markers:
             if marker in cleaned:
                 suspicious_findings.append({"document_id": source["document_id"], "marker": marker})
         record = {
