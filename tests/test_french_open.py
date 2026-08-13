@@ -8,6 +8,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 from data.french_open import (
     clean_open_french_text,
     dictionary_definitions,
+    dictionary_senses,
     render_dictionary_entry,
     valid_documentation_block,
 )
@@ -27,6 +28,18 @@ def test_dictionary_definitions_excludes_forms_and_deduplicates():
         ]
     }
     assert dictionary_definitions(entry) == ["Définition française suffisamment longue."]
+
+
+def test_dictionary_senses_preserves_usage_labels():
+    entry = {
+        "senses": [
+            {
+                "glosses": ["Définition française suffisamment longue."],
+                "raw_tags": ["Péjoratif", "Vieilli"],
+            }
+        ]
+    }
+    assert dictionary_senses(entry)[0]["labels"] == ["Péjoratif", "Vieilli"]
 
 
 def test_render_dictionary_entry_uses_only_source_fields():
