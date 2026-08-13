@@ -72,7 +72,7 @@ if SNAPSHOT.exists():
         raise SystemExit(f"Snapshot existant sans manifeste : {SNAPSHOT}")
     print(f"Snapshot déjà présent : {SNAPSHOT}")
     raise SystemExit(0)
-PARTIAL.mkdir(parents=True)
+PARTIAL.mkdir(parents=True, exist_ok=True)
 PAGE_CACHE = PARTIAL / "rendered_pages"
 PAGE_CACHE.mkdir(exist_ok=True)
 
