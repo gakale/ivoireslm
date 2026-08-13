@@ -30,3 +30,10 @@ def test_rendered_math_html_keeps_text_and_single_latex_formula():
     assert "$x^2=4$" in text
     assert text.count("x^2=4") == 1
     assert "bibliographique" not in text
+
+
+def test_rendered_math_html_repairs_literal_closing_math_tag():
+    html = r"<p>Les vecteurs $u$ et \vec v&lt;/math&gt; sont coplanaires.</p>"
+    text = rendered_math_html_to_text(html)
+    assert r"$\vec v$" in text
+    assert "</math>" not in text
