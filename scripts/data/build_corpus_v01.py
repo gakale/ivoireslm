@@ -32,6 +32,7 @@ LEGACY_ORIGINAL_DERIVED = Path(
 VERSION = os.environ.get("IVOIRESLM_CORPUS_VERSION", "ivoireslm_corpus_v0.1.0")
 INCLUDE_WDI = os.environ.get("IVOIRESLM_INCLUDE_WDI", "0") == "1"
 INCLUDE_FAOSTAT = os.environ.get("IVOIRESLM_INCLUDE_FAOSTAT", "0") == "1"
+INCLUDE_OPEN_FRENCH = os.environ.get("IVOIRESLM_INCLUDE_OPEN_FRENCH", "0") == "1"
 OUTPUT = STORAGE / "corpora" / VERSION
 CURRENT_MANIFEST = STORAGE / "manifests" / "structured_factual_v0.1.jsonl"
 LEGACY_MANIFEST = LEGACY / "manifests" / "structured_factual_v0.1.jsonl"
@@ -69,6 +70,10 @@ if INCLUDE_WDI:
     CURRENT_ALLOWED.add("civ_worldbank_wdi_1960_2025_v0.1")
 if INCLUDE_FAOSTAT:
     CURRENT_ALLOWED.add("civ_faostat_production_1961_2024_v0.1")
+if INCLUDE_OPEN_FRENCH:
+    CURRENT_ALLOWED.update(
+        {"python_docs_fr_3_14_v0.1", "frwiktionary_definitions_v0.1"}
+    )
 
 QUARANTINE = [
     {
@@ -192,7 +197,9 @@ def collect_records():
         record["source_manifest_path"] = str(LEGACY_MANIFEST)
         records.append(record)
     records.sort(key=lambda row: row["document_id"])
-    expected_documents = 13 + int(INCLUDE_WDI) + int(INCLUDE_FAOSTAT)
+    expected_documents = (
+        13 + int(INCLUDE_WDI) + int(INCLUDE_FAOSTAT) + 2 * int(INCLUDE_OPEN_FRENCH)
+    )
     if len(records) != expected_documents:
         raise ValueError(
             f"{expected_documents} documents autorisés attendus, trouvé {len(records)}"
@@ -205,7 +212,8 @@ def main():
     splits_dir = OUTPUT / "splits"
     manifests_dir = OUTPUT / "manifests"
     reports_dir = OUTPUT / "reports"
-    for directory in (documents_dir, splits_dir, manifests_dir, reports_dir):
+    attributions_dir = OUTPUT / "attributions"
+    for directory in (documents_dir, splits_dir, manifests_dir, reports_dir, attributions_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
     source_records = collect_records()
@@ -248,6 +256,17 @@ def main():
         destination = documents_dir / split / f"{source['document_id']}.txt"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(cleaned, encoding="utf-8")
+        corpus_attribution_path = None
+        source_attribution_path = source.get("attribution_path")
+        if source_attribution_path:
+            source_attribution_path = Path(source_attribution_path)
+            if not source_attribution_path.is_file():
+                raise FileNotFoundError(source_attribution_path)
+            attribution_digest = hashlib.sha256(source_attribution_path.read_bytes()).hexdigest()
+            if attribution_digest != source.get("attribution_sha256"):
+                raise ValueError(f"Hash d’attribution invalide : {source['document_id']}")
+            corpus_attribution_path = attributions_dir / f"{source['document_id']}.jsonl"
+            shutil.copyfile(source_attribution_path, corpus_attribution_path)
         transformations.append(
             {
                 "document_id": source["document_id"],
@@ -268,10 +287,11 @@ def main():
             "source_id": source["source_id"],
             "group_id": source.get("group_id", source["source_id"]),
             "title": source.get("title", source["document_id"]),
-            "country_code": "CIV",
+            "country_code": source.get("country_code", "CIV"),
+            "country_name": source.get("country_name", "Côte d’Ivoire"),
             "language": source.get("language", "fr"),
             "domain": source.get("domain") or source.get("primary_domain") or "unknown",
-            "content_type": "deterministic_structured_factual_text",
+            "content_type": source.get("content_type", "deterministic_structured_factual_text"),
             "rights_status": "open_license" if source.get("license") else "redistributable_source",
             "rights_tier": "A_REDISTRIBUTABLE",
             "license": source.get("license"),
@@ -283,6 +303,9 @@ def main():
             "source_manifest_path": source["source_manifest_path"],
             "source_table": source.get("source_table"),
             "source_table_sha256": source.get("source_table_sha256"),
+            "source_attribution_path": str(source_attribution_path) if source_attribution_path else None,
+            "attribution_path": str(corpus_attribution_path) if corpus_attribution_path else None,
+            "attribution_sha256": source.get("attribution_sha256"),
             "generation_method": source.get("generation_method"),
             "corpus_path": str(destination),
             "source_sha256": raw_hash,
@@ -388,7 +411,9 @@ def main():
     }
     write_json(reports_dir / "quality_report.json", report)
 
-    if INCLUDE_FAOSTAT:
+    if INCLUDE_OPEN_FRENCH:
+        build_script, audit_script = "build_corpus_v04.py", "audit_corpus_v04.py"
+    elif INCLUDE_FAOSTAT:
         build_script, audit_script = "build_corpus_v03.py", "audit_corpus_v03.py"
     elif INCLUDE_WDI:
         build_script, audit_script = "build_corpus_v02.py", "audit_corpus_v02.py"
@@ -408,7 +433,7 @@ Corpus factuel ivoirien nettoyé et traçable, construit le 13 août 2026.
 - {report['documents']} documents issus de {report['documents']} groupes de sources indépendants.
 - {report['lines']:,} phrases factuelles et {report['atomic_facts']:,} faits atomiques déclarés.
 - {report['characters']:,} caractères et {report['words']:,} mots approximatifs.
-- Langue principale : français. Pays : Côte d'Ivoire.
+- Langue principale : français. Périmètre : Côte d'Ivoire et ressources francophones ouvertes.
 - Toutes les entrées sont classées `A_REDISTRIBUTABLE` ou sous licence ouverte dans leur manifeste source.
 
 ## Splits protégés
@@ -436,6 +461,8 @@ Les livres sous copyright, documents aux droits inconnus, copies tierces, métad
 ## Limites
 
 Cette version reste spécialisée dans les données factuelles structurées et comporte des libellés officiels anglais provenant de WDI et FAOSTAT. Elle convient pour entraîner le tokenizer caractère de la roadmap et de petits modèles expérimentaux, mais pas encore pour un modèle généraliste. Il faut acquérir davantage de textes naturels ivoiriens explicitement autorisés, notamment littérature, administration, éducation, santé, médias et langues locales.
+
+Le corpus est une collection de documents conservant leurs licences propres. Les définitions du Wiktionnaire restent sous CC BY-SA 4.0 (avec GFDL comme option alternative) et disposent d'un fichier d'attribution par page dans `attributions/`. Elles ne sont pas relicenciées sous la licence des autres sources.
 
 ## Reproduction
 
