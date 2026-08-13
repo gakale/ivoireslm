@@ -10,7 +10,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
 from data.common import sha256_text, upsert_jsonl, write_json
-from data.corpus import EMAIL_RE, PHONE_RE
+from data.corpus import EMAIL_RE, PHONE_RE, normalized_line_key
 from data.mathematics import rendered_math_html_to_text
 
 
@@ -32,6 +32,19 @@ if hashlib.sha256(SOURCE.read_bytes()).hexdigest() != EXPECTED_SHA256:
 wikibooks = json.loads(WIKIBOOKS_REPORT.read_text(encoding="utf-8"))
 wikibooks_text = Path(wikibooks["output_path"]).read_text(encoding="utf-8")
 target_complement = max(0, MATH_TARGET_CHARACTERS - len(wikibooks_text))
+base_manifest = ROOT / "corpora/ivoireslm_corpus_v0.4.0/manifests/documents.jsonl"
+base_records = [json.loads(line) for line in base_manifest.read_text().splitlines()]
+seen_lines = {
+    normalized_line_key(line)
+    for record in base_records
+    for line in Path(record["corpus_path"]).read_text(encoding="utf-8").splitlines()
+    if normalized_line_key(line)
+}
+seen_lines.update(
+    normalized_line_key(line)
+    for line in wikibooks_text.splitlines()
+    if normalized_line_key(line)
+)
 
 candidates = []
 excluded = Counter()
@@ -53,9 +66,22 @@ candidates.sort(key=lambda row: row["selection_score"])
 
 selected = []
 selected_characters = 0
+duplicate_lines_excluded = 0
 for row in candidates:
-    chunk = f"Titre : {row['title']}\n{row['clean_text']}\n\n"
-    selected.append({**row, "chunk": chunk})
+    unique_lines = []
+    for line in row["clean_text"].splitlines():
+        key = normalized_line_key(line)
+        if not key or key in seen_lines:
+            duplicate_lines_excluded += bool(key)
+            continue
+        seen_lines.add(key)
+        unique_lines.append(line)
+    unique_text = "\n".join(unique_lines).strip()
+    if len(unique_text) < 500:
+        excluded["insufficient_unique_text"] += 1
+        continue
+    chunk = f"Article Wikipédia : {row['title']}\n{unique_text}\n\n"
+    selected.append({**row, "clean_text": unique_text, "chunk": chunk})
     selected_characters += len(chunk)
     if selected_characters >= target_complement:
         break
@@ -123,6 +149,7 @@ record = {
     "selected_pages": len(selected),
     "selected_categories": dict(sorted(category_counts.items())),
     "excluded_pages": dict(sorted(excluded.items())),
+    "duplicate_lines_excluded": duplicate_lines_excluded,
     "atomic_facts": sum(len(row["clean_text"].splitlines()) for row in selected),
     "generation_method": "deterministic_sha256_ranked_rendered_html_cleanup_mathml_to_latex_target_share",
     "source_file": str(SOURCE),
