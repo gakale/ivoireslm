@@ -7,6 +7,10 @@ from bs4 import BeautifulSoup
 SPACE_RE = re.compile(r"[ \t\u00a0]+")
 BLANK_RE = re.compile(r"\n{3,}")
 DISPLAYSTYLE_RE = re.compile(r"^\{\\displaystyle\s*(.*)\}$", re.DOTALL)
+MALFORMED_MATH_JOIN_RE = re.compile(
+    r"(?:</?math>|/?math>)\s*et\s*(?:<math>|math>)", re.IGNORECASE
+)
+RESIDUAL_MATH_TAG_RE = re.compile(r"</?math>|/?math>", re.IGNORECASE)
 EXCLUDED_SECTIONS = {
     "annexes",
     "bibliographie",
@@ -25,6 +29,10 @@ def normalize_heading(value):
 
 def clean_latex(value):
     latex = SPACE_RE.sub(" ", unicodedata.normalize("NFC", value)).strip()
+    # A few legacy Wikilivres pages contain broken literal MathML boundaries
+    # inside alttext. Preserve both expressions as separate LaTeX spans.
+    latex = MALFORMED_MATH_JOIN_RE.sub("$ et $", latex)
+    latex = RESIDUAL_MATH_TAG_RE.sub(" ", latex)
     match = DISPLAYSTYLE_RE.match(latex)
     if match:
         latex = match.group(1).strip()
