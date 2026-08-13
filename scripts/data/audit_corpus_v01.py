@@ -1,9 +1,12 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 
 
-ROOT = Path.home() / "ivoireslm-storage" / "corpora" / "ivoireslm_corpus_v0.1.0"
+VERSION = os.environ.get("IVOIRESLM_CORPUS_VERSION", "ivoireslm_corpus_v0.1.0")
+EXPECTED_DOCUMENTS = int(os.environ.get("IVOIRESLM_EXPECTED_DOCUMENTS", "13"))
+ROOT = Path.home() / "ivoireslm-storage" / "corpora" / VERSION
 MANIFEST = ROOT / "manifests" / "documents.jsonl"
 REPORT = ROOT / "reports" / "quality_report.json"
 CHECKSUMS = ROOT / "SHA256SUMS"
@@ -31,8 +34,8 @@ if split_groups["train"] & split_groups["test"]:
     errors.append("fuite train/test")
 if split_groups["validation"] & split_groups["test"]:
     errors.append("fuite validation/test")
-if len(rows) != 13:
-    errors.append(f"13 documents attendus, trouvé {len(rows)}")
+if len(rows) != EXPECTED_DOCUMENTS:
+    errors.append(f"{EXPECTED_DOCUMENTS} documents attendus, trouvé {len(rows)}")
 if not report.get("quality_gate_passed"):
     errors.append("quality gate déclaré en échec")
 
@@ -63,7 +66,7 @@ for line in CHECKSUMS.read_text(encoding="utf-8").splitlines():
 
 if errors:
     raise SystemExit("AUDIT ÉCHOUÉ\n- " + "\n- ".join(errors))
-print("AUDIT CORPUS v0.1.0 : OK")
+print(f"AUDIT {VERSION} : OK")
 print("Documents :", len(rows))
 print("Phrases   :", report["lines"])
 print("Faits     :", report["atomic_facts"])
