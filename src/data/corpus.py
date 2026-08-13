@@ -5,6 +5,11 @@ import unicodedata
 
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 WORD_RE = re.compile(r"[\wÀ-ÖØ-öø-ÿŒœ’'-]+", re.UNICODE)
+EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
+PHONE_RE = re.compile(
+    r"(?<![\d,.])(?:\+225[ .-]?(?:0[157][ .-]?)(?:\d[ .-]?){8}"
+    r"|0[157](?:[ .-]\d{2}){4})(?!\d)"
+)
 
 
 def sha256_text(text):
