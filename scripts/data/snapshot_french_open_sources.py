@@ -95,5 +95,5 @@ manifest = {
 )
 PARTIAL.rename(SNAPSHOT)
 print(f"Snapshot créé : {SNAPSHOT}")
-print(f"Wiktionnaire : {dictionary.stat().st_size:,} octets")
+print(f"Wiktionnaire : {(SNAPSHOT / dictionary.name).stat().st_size:,} octets")
 print(f"Documentation Python commit : {commit}")
