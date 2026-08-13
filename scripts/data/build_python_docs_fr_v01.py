@@ -11,6 +11,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
 from data.common import sha256_text, upsert_jsonl, write_json
+from data.corpus import EMAIL_RE
 from data.french_open import clean_open_french_text, valid_documentation_block
 
 
@@ -35,6 +36,7 @@ blocks = []
 seen = set()
 per_file = Counter()
 translated_entries = 0
+excluded_email_blocks = 0
 for source_file in sorted(SOURCE.rglob("*.po")):
     catalog = polib.pofile(str(source_file))
     relative = str(source_file.relative_to(SOURCE))
@@ -44,6 +46,9 @@ for source_file in sorted(SOURCE.rglob("*.po")):
         for translation in translations:
             text = clean_open_french_text(translation)
             key = text.casefold()
+            if EMAIL_RE.search(text):
+                excluded_email_blocks += 1
+                continue
             if not valid_documentation_block(text) or key in seen:
                 continue
             seen.add(key)
@@ -91,6 +96,7 @@ record = {
     "source_files": len(list(SOURCE.rglob("*.po"))),
     "translated_entries": translated_entries,
     "usable_blocks": len(blocks),
+    "excluded_email_blocks": excluded_email_blocks,
     "atomic_facts": len(blocks),
     "generation_method": "deterministic_po_translation_extraction_and_rst_markup_cleanup",
     "output_path": str(OUT_FILE),
