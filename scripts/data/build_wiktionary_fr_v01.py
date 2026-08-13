@@ -96,8 +96,18 @@ selected.sort(
 
 lines = []
 attributions = []
+effective_entries = []
+rendered_seen = set()
+duplicate_renderings_excluded = 0
 for entry in selected:
-    lines.append(render_dictionary_entry(entry))
+    rendered = render_dictionary_entry(entry)
+    rendered_key = rendered.casefold()
+    if rendered_key in rendered_seen:
+        duplicate_renderings_excluded += 1
+        continue
+    rendered_seen.add(rendered_key)
+    lines.append(rendered)
+    effective_entries.append(entry)
     title = str(entry["word"])
     article_url = "https://fr.wiktionary.org/wiki/" + urllib.parse.quote(
         title.replace(" ", "_"), safe="()'"
@@ -121,7 +131,7 @@ ATTRIBUTION.write_text(
     encoding="utf-8",
 )
 
-selected_by_pos = Counter(entry["pos"] for entry in selected)
+selected_by_pos = Counter(entry["pos"] for entry in effective_entries)
 record = {
     "document_id": "frwiktionary_definitions_v0.1",
     "source_id": "frwiktionary_kaikki_french",
@@ -141,9 +151,10 @@ record = {
     "source_rows": source_counts["rows"],
     "eligible_by_pos": dict(sorted(eligible_counts.items())),
     "selected_by_pos": dict(sorted(selected_by_pos.items())),
-    "selected_entries": len(selected),
+    "selected_entries": len(effective_entries),
+    "duplicate_renderings_excluded": duplicate_renderings_excluded,
     "sentences_generated": len(lines),
-    "atomic_facts": sum(len(dictionary_definitions(entry)) for entry in selected),
+    "atomic_facts": sum(len(dictionary_definitions(entry)) for entry in effective_entries),
     "generation_method": "deterministic_sha256_ranked_pos_balanced_definition_selection_no_examples",
     "source_file": str(SOURCE),
     "source_file_sha256": EXPECTED_SHA256,
@@ -157,7 +168,8 @@ upsert_jsonl(MANIFEST, record, key="document_id")
 write_json(REPORT, record)
 print("WIKTIONNAIRE FR v0.1 : OK")
 print("Entrées source   :", source_counts["rows"])
-print("Entrées retenues :", len(selected))
+print("Entrées retenues :", len(effective_entries))
+print("Doublons exclus  :", duplicate_renderings_excluded)
 print("Faits            :", record["atomic_facts"])
 print("Caractères       :", len(text))
 print("SHA-256          :", sha256_text(text))
