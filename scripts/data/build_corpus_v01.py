@@ -33,6 +33,7 @@ VERSION = os.environ.get("IVOIRESLM_CORPUS_VERSION", "ivoireslm_corpus_v0.1.0")
 INCLUDE_WDI = os.environ.get("IVOIRESLM_INCLUDE_WDI", "0") == "1"
 INCLUDE_FAOSTAT = os.environ.get("IVOIRESLM_INCLUDE_FAOSTAT", "0") == "1"
 INCLUDE_OPEN_FRENCH = os.environ.get("IVOIRESLM_INCLUDE_OPEN_FRENCH", "0") == "1"
+INCLUDE_MATHEMATICS = os.environ.get("IVOIRESLM_INCLUDE_MATHEMATICS", "0") == "1"
 OUTPUT = STORAGE / "corpora" / VERSION
 CURRENT_MANIFEST = STORAGE / "manifests" / "structured_factual_v0.1.jsonl"
 LEGACY_MANIFEST = LEGACY / "manifests" / "structured_factual_v0.1.jsonl"
@@ -73,6 +74,10 @@ if INCLUDE_FAOSTAT:
 if INCLUDE_OPEN_FRENCH:
     CURRENT_ALLOWED.update(
         {"python_docs_fr_3_14_v0.1", "frwiktionary_definitions_v0.1"}
+    )
+if INCLUDE_MATHEMATICS:
+    CURRENT_ALLOWED.update(
+        {"frwikibooks_mathematics_v0.1", "frwikipedia_mathematics_complement_v0.1"}
     )
 
 QUARANTINE = [
@@ -198,7 +203,11 @@ def collect_records():
         records.append(record)
     records.sort(key=lambda row: row["document_id"])
     expected_documents = (
-        13 + int(INCLUDE_WDI) + int(INCLUDE_FAOSTAT) + 2 * int(INCLUDE_OPEN_FRENCH)
+        13
+        + int(INCLUDE_WDI)
+        + int(INCLUDE_FAOSTAT)
+        + 2 * int(INCLUDE_OPEN_FRENCH)
+        + 2 * int(INCLUDE_MATHEMATICS)
     )
     if len(records) != expected_documents:
         raise ValueError(
@@ -414,7 +423,9 @@ def main():
     }
     write_json(reports_dir / "quality_report.json", report)
 
-    if INCLUDE_OPEN_FRENCH:
+    if INCLUDE_MATHEMATICS:
+        build_script, audit_script = "build_corpus_v05.py", "audit_corpus_v05.py"
+    elif INCLUDE_OPEN_FRENCH:
         build_script, audit_script = "build_corpus_v04.py", "audit_corpus_v04.py"
     elif INCLUDE_FAOSTAT:
         build_script, audit_script = "build_corpus_v03.py", "audit_corpus_v03.py"
