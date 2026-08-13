@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path.home() / "ivoireslm-storage"
-SNAPSHOT = ROOT / "snapshots/wikibooks_math_fr_2026-08-13_v0.1"
+SNAPSHOT = ROOT / "snapshots/wikibooks_math_fr_2026-08-13_v0.2"
 PARTIAL = SNAPSHOT.with_name(SNAPSHOT.name + ".partial")
 API = "https://fr.wikibooks.org/w/api.php"
 ROOT_CATEGORY = "Catégorie:Mathématiques"
@@ -81,6 +81,7 @@ for offset in range(0, len(page_ids), 20):
     payload = api_call(
         prop="extracts|revisions",
         pageids="|".join(map(str, batch)),
+        exlimit="max",
         rvprop="ids|timestamp|sha1",
     )
     for page in payload["query"]["pages"]:
@@ -102,6 +103,11 @@ for offset in range(0, len(page_ids), 20):
     time.sleep(0.15)
 
 records.sort(key=lambda row: row["pageid"])
+pages_with_html = sum(bool(row["html"].strip()) for row in records)
+if pages_with_html < int(len(records) * 0.90):
+    raise ValueError(
+        f"Snapshot incomplet : {pages_with_html}/{len(records)} pages avec HTML"
+    )
 output.write_text(
     "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in records),
     encoding="utf-8",
@@ -117,6 +123,7 @@ manifest = {
     "categories_visited": len(categories),
     "pages_discovered": len(pages),
     "pages_snapshotted": len(records),
+    "pages_with_html": pages_with_html,
     "pages_file": output.name,
     "pages_file_sha256": digest,
     "license": "Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0); GFDL alternative where applicable",
