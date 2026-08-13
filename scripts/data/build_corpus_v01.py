@@ -31,6 +31,7 @@ LEGACY_ORIGINAL_DERIVED = Path(
 )
 VERSION = os.environ.get("IVOIRESLM_CORPUS_VERSION", "ivoireslm_corpus_v0.1.0")
 INCLUDE_WDI = os.environ.get("IVOIRESLM_INCLUDE_WDI", "0") == "1"
+INCLUDE_FAOSTAT = os.environ.get("IVOIRESLM_INCLUDE_FAOSTAT", "0") == "1"
 OUTPUT = STORAGE / "corpora" / VERSION
 CURRENT_MANIFEST = STORAGE / "manifests" / "structured_factual_v0.1.jsonl"
 LEGACY_MANIFEST = LEGACY / "manifests" / "structured_factual_v0.1.jsonl"
@@ -66,6 +67,8 @@ CURRENT_ALLOWED = {
 }
 if INCLUDE_WDI:
     CURRENT_ALLOWED.add("civ_worldbank_wdi_1960_2025_v0.1")
+if INCLUDE_FAOSTAT:
+    CURRENT_ALLOWED.add("civ_faostat_production_1961_2024_v0.1")
 
 QUARANTINE = [
     {
@@ -189,7 +192,7 @@ def collect_records():
         record["source_manifest_path"] = str(LEGACY_MANIFEST)
         records.append(record)
     records.sort(key=lambda row: row["document_id"])
-    expected_documents = 14 if INCLUDE_WDI else 13
+    expected_documents = 13 + int(INCLUDE_WDI) + int(INCLUDE_FAOSTAT)
     if len(records) != expected_documents:
         raise ValueError(
             f"{expected_documents} documents autorisés attendus, trouvé {len(records)}"
