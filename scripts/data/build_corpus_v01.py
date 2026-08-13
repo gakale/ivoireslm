@@ -1,4 +1,5 @@
 import json
+import hashlib
 import re
 import shutil
 import sys
@@ -95,6 +96,30 @@ QUARANTINE = [
         "rights_status": "open_license_needs_review",
         "reason": "interpretive_or_speculative_claims_and_overlap_with_factual_sources",
     },
+    {
+        "document_id": "legacy_canonical_nonopen_101",
+        "path": "imports/legacy_quarantine_2026-08-13/cleaned_canonical_v0.3",
+        "rights_status": "unknown_or_restricted",
+        "reason": "google_books_books_legal_and_academic_texts_not_cleared_for_official_training",
+    },
+    {
+        "document_id": "legacy_transcriptions",
+        "path": "imports/legacy_quarantine_2026-08-13/raw/transcriptions",
+        "rights_status": "unknown_or_restricted",
+        "reason": "copyright_consent_and_personal_data_review_required",
+    },
+    {
+        "document_id": "legacy_audio_and_transcription_datasets",
+        "path": "imports/legacy_quarantine_2026-08-13/raw/legacy_datasets",
+        "rights_status": "unknown_or_restricted",
+        "reason": "provenance_consent_and_schema_review_required",
+    },
+    {
+        "document_id": "legacy_instruction_candidates",
+        "path": "imports/legacy_quarantine_2026-08-13/instruction_candidates",
+        "rights_status": "excluded_from_pretraining_v0",
+        "reason": "instruction_or_synthetic_provenance_not_validated_and_roadmap_excludes_external_synthetic_data",
+    },
 ]
 
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
@@ -124,7 +149,13 @@ def source_path(record):
 def collect_records():
     records = []
     for record in read_jsonl(CURRENT_MANIFEST):
-        records.append(dict(record, provenance_generation="current_reproducible_builder"))
+        records.append(
+            dict(
+                record,
+                provenance_generation="current_reproducible_builder",
+                source_manifest_path=str(CURRENT_MANIFEST),
+            )
+        )
     for legacy_record in read_jsonl(LEGACY_MANIFEST):
         legacy_id = legacy_record["document_id"]
         if legacy_id not in LEGACY_ALLOWED:
@@ -143,6 +174,7 @@ def collect_records():
         record["license"] = record.get("license") or "Open government data; source manifest rights tier A_REDISTRIBUTABLE"
         record["group_id"] = record.get("group_id") or record["source_id"]
         record["provenance_generation"] = "legacy_validated_builder_output"
+        record["source_manifest_path"] = str(LEGACY_MANIFEST)
         records.append(record)
     records.sort(key=lambda row: row["document_id"])
     if len(records) != 13:
@@ -227,6 +259,9 @@ def main():
             "license": source.get("license"),
             "split": split,
             "source_path": str(path),
+            "source_manifest_path": source["source_manifest_path"],
+            "source_table": source.get("source_table"),
+            "generation_method": source.get("generation_method"),
             "corpus_path": str(destination),
             "source_sha256": raw_hash,
             "text_sha256": sha256_text(cleaned),
@@ -284,7 +319,7 @@ def main():
             path = STORAGE / path
         row = dict(item, resolved_path=str(path), exists=path.exists(), pipeline_status="not_in_official_corpus")
         if path.is_file():
-            row["sha256"] = sha256_text(path.read_text(encoding="utf-8", errors="replace")) if path.suffix == ".txt" else __import__("hashlib").sha256(path.read_bytes()).hexdigest()
+            row["sha256"] = sha256_text(path.read_text(encoding="utf-8", errors="replace")) if path.suffix == ".txt" else hashlib.sha256(path.read_bytes()).hexdigest()
         quarantine_rows.append(row)
 
     write_jsonl(manifests_dir / "documents.jsonl", corpus_records)
@@ -376,6 +411,17 @@ python3 scripts/data/audit_corpus_v01.py
 ```
 """
     (OUTPUT / "DATASET_CARD.md").write_text(dataset_card, encoding="utf-8")
+
+    checksum_paths = sorted(
+        path
+        for path in OUTPUT.rglob("*")
+        if path.is_file() and path.name != "SHA256SUMS"
+    )
+    checksums = "".join(
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(OUTPUT)}\n"
+        for path in checksum_paths
+    )
+    (OUTPUT / "SHA256SUMS").write_text(checksums, encoding="utf-8")
 
     if not report["quality_gate_passed"]:
         raise ValueError("Le corpus a été produit, mais le quality gate a échoué. Voir quality_report.json")
