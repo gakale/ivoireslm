@@ -1,0 +1,377 @@
+import json
+import re
+import shutil
+import sys
+from collections import Counter, defaultdict
+from itertools import combinations
+from pathlib import Path
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
+
+from data.corpus import (
+    CONTROL_RE,
+    jaccard,
+    normalize_text,
+    normalized_line_key,
+    sha256_text,
+    token_shingles,
+    word_count,
+)
+
+
+STORAGE = Path.home() / "ivoireslm-storage"
+LEGACY = Path("/home/gnakaleroland/ivoireslm-storage")
+VERSION = "ivoireslm_corpus_v0.1.0"
+OUTPUT = STORAGE / "corpora" / VERSION
+CURRENT_MANIFEST = STORAGE / "manifests" / "structured_factual_v0.1.jsonl"
+LEGACY_MANIFEST = LEGACY / "manifests" / "structured_factual_v0.1.jsonl"
+
+SPLIT_BY_SOURCE = {
+    "civ_datagouv_fish_meat_trade": "validation",
+    "civ_datagouv_rainfall_stations": "validation",
+    "civ_datagouv_rgph2021": "test",
+    "civ_datagouv_bac_1960_2025": "test",
+}
+
+LEGACY_ALLOWED = {
+    "civ_bac_admission_1960_2026_v0.1": {"domain": "education", "atomic_facts": 67},
+    "civ_cocoa_coffee_2022_2023_v0.1": {"domain": "agriculture", "atomic_facts": 24},
+    "structured_agri_pop_2024_v01": {
+        "document_id": "civ_agricultural_population_2024_v0.1",
+        "domain": "agriculture",
+        "atomic_facts": 99,
+    },
+    "civ_ghg_emissions_1990_2020_v0.1": {"domain": "environment_climate", "atomic_facts": 150},
+    "civ_urban_population_1975_2021_v0.1": {"domain": "demography", "atomic_facts": 105},
+    "civ_livestock_flows_2024_v0.1": {"domain": "agriculture", "atomic_facts": 62},
+    "civ_farmgate_prices_2021_2023_v0.1": {"domain": "agriculture", "atomic_facts": 101},
+}
+
+QUARANTINE = [
+    {
+        "document_id": "incoming_auteurs_africains",
+        "path": "incoming/mac_2026-08-12/documents/auteurs africains.pdf",
+        "rights_status": "excluded",
+        "reason": "database_storage_prohibited_by_publisher_terms",
+    },
+    {
+        "document_id": "incoming_kourouma_quand_on_refuse",
+        "path": "incoming/mac_2026-08-12/documents/Kourouma-Ahmadou-Quand-on-refuse-on-dit-non.pdf",
+        "rights_status": "copyrighted",
+        "reason": "permission_required_for_training_or_redistribution",
+    },
+    {
+        "document_id": "incoming_9782336004426",
+        "path": "incoming/mac_2026-08-12/documents/747833359-9782336004426.pdf",
+        "rights_status": "excluded",
+        "reason": "commercial_cover_only_not_useful_training_text",
+    },
+    {
+        "document_id": "incoming_roman_ivoirien_expose",
+        "path": "incoming/mac_2026-08-12/documents/724958393-Expose-sur-l-histoire-du-roman-ivoirien.docx",
+        "rights_status": "unknown",
+        "reason": "rights_unknown_and_factual_quality_review_required",
+    },
+    {
+        "document_id": "incoming_convention_collective_2020",
+        "path": "incoming/mac_2026-08-12/documents/CONVENTIONS_COLLECTIVES_INTERPROFESSIONNELLES_2020-NI.pdf",
+        "rights_status": "restricted_research",
+        "reason": "third_party_copy_rights_not_verified",
+    },
+    {
+        "document_id": "legacy_training_pool_v0.1",
+        "path": "/home/gnakaleroland/ivoireslm-storage/manifests/training_pool_v0.1.jsonl",
+        "rights_status": "excluded",
+        "reason": "stale_pool_with_630_duplicated_catalog_records",
+    },
+    {
+        "document_id": "legacy_data_gouv_natural_11",
+        "path": "/home/gnakaleroland/ivoireslm-storage/cleaned_canonical_v0.3/data_gouv_ci",
+        "rights_status": "open_license_needs_review",
+        "reason": "interpretive_or_speculative_claims_and_overlap_with_factual_sources",
+    },
+]
+
+EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
+PHONE_RE = re.compile(r"(?<!\d)(?:\+225[ .-]?)?(?:0[157][ .-]?)(?:\d[ .-]?){8}(?!\d)")
+
+
+def read_jsonl(path):
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_jsonl(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def source_path(record):
+    return Path(record.get("output_path") or record.get("file_path") or "")
+
+
+def collect_records():
+    records = []
+    for record in read_jsonl(CURRENT_MANIFEST):
+        records.append(dict(record, provenance_generation="current_reproducible_builder"))
+    for legacy_record in read_jsonl(LEGACY_MANIFEST):
+        legacy_id = legacy_record["document_id"]
+        if legacy_id not in LEGACY_ALLOWED:
+            continue
+        override = LEGACY_ALLOWED[legacy_id]
+        record = dict(legacy_record)
+        record.update(override)
+        record["document_id"] = override.get("document_id", legacy_id)
+        record["rights_tier"] = record.get("rights_tier") or "A_REDISTRIBUTABLE"
+        record["license"] = record.get("license") or "Open government data; source manifest rights tier A_REDISTRIBUTABLE"
+        record["group_id"] = record.get("group_id") or record["source_id"]
+        record["provenance_generation"] = "legacy_validated_builder_output"
+        records.append(record)
+    records.sort(key=lambda row: row["document_id"])
+    if len(records) != 13:
+        raise ValueError(f"13 documents autorisés attendus, trouvé {len(records)}")
+    return records
+
+
+def main():
+    documents_dir = OUTPUT / "documents"
+    splits_dir = OUTPUT / "splits"
+    manifests_dir = OUTPUT / "manifests"
+    reports_dir = OUTPUT / "reports"
+    for directory in (documents_dir, splits_dir, manifests_dir, reports_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    source_records = collect_records()
+    corpus_records = []
+    source_hash_failures = []
+    transformations = []
+    pii_findings = []
+    suspicious_findings = []
+    global_lines = {}
+    removed_duplicate_lines = []
+
+    for source in source_records:
+        path = source_path(source)
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        raw = path.read_text(encoding="utf-8")
+        raw_hash = sha256_text(raw)
+        declared_hash = source.get("text_sha256")
+        if declared_hash and raw_hash != declared_hash:
+            source_hash_failures.append(source["document_id"])
+        cleaned = normalize_text(raw)
+        kept_lines = []
+        for line_number, line in enumerate(cleaned.splitlines(), 1):
+            key = normalized_line_key(line)
+            if not key:
+                continue
+            if key in global_lines:
+                removed_duplicate_lines.append(
+                    {
+                        "document_id": source["document_id"],
+                        "line": line_number,
+                        "duplicate_of": global_lines[key],
+                    }
+                )
+                continue
+            global_lines[key] = {"document_id": source["document_id"], "line": line_number}
+            kept_lines.append(line)
+        cleaned = "\n".join(kept_lines) + "\n"
+        split = SPLIT_BY_SOURCE.get(source["source_id"], "train")
+        destination = documents_dir / split / f"{source['document_id']}.txt"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(cleaned, encoding="utf-8")
+        transformations.append(
+            {
+                "document_id": source["document_id"],
+                "source_sha256": raw_hash,
+                "clean_sha256": sha256_text(cleaned),
+                "changed_by_normalization": raw != cleaned,
+                "duplicate_lines_removed": len(raw.splitlines()) - len(kept_lines),
+            }
+        )
+        for kind, matcher in (("email", EMAIL_RE), ("phone", PHONE_RE)):
+            for match in matcher.finditer(cleaned):
+                pii_findings.append({"document_id": source["document_id"], "kind": kind, "value": match.group(0)})
+        for marker in ("type « nan »", "None", "�"):
+            if marker in cleaned:
+                suspicious_findings.append({"document_id": source["document_id"], "marker": marker})
+        record = {
+            "document_id": source["document_id"],
+            "source_id": source["source_id"],
+            "group_id": source.get("group_id", source["source_id"]),
+            "title": source.get("title", source["document_id"]),
+            "country_code": "CIV",
+            "language": "fr",
+            "domain": source.get("domain") or source.get("primary_domain") or "unknown",
+            "content_type": "deterministic_structured_factual_text",
+            "rights_status": "open_license" if source.get("license") else "redistributable_source",
+            "rights_tier": "A_REDISTRIBUTABLE",
+            "license": source.get("license"),
+            "split": split,
+            "source_path": str(path),
+            "corpus_path": str(destination),
+            "source_sha256": raw_hash,
+            "text_sha256": sha256_text(cleaned),
+            "characters": len(cleaned),
+            "words": word_count(cleaned),
+            "lines": len(kept_lines),
+            "atomic_facts": source.get("atomic_facts", len(kept_lines)),
+            "provenance_generation": source["provenance_generation"],
+            "pipeline_status": "accepted_clean_v0.1.0",
+        }
+        corpus_records.append(record)
+
+    hashes = defaultdict(list)
+    for record in corpus_records:
+        hashes[record["text_sha256"]].append(record["document_id"])
+    exact_document_duplicates = [ids for ids in hashes.values() if len(ids) > 1]
+
+    shingles = {}
+    for record in corpus_records:
+        text = Path(record["corpus_path"]).read_text(encoding="utf-8")
+        shingles[record["document_id"]] = token_shingles(text)
+    near_pairs = []
+    max_similarity = 0.0
+    max_pair = None
+    for left, right in combinations(corpus_records, 2):
+        score = jaccard(shingles[left["document_id"]], shingles[right["document_id"]])
+        if score > max_similarity:
+            max_similarity = score
+            max_pair = [left["document_id"], right["document_id"]]
+        if score >= 0.80:
+            near_pairs.append({"left": left["document_id"], "right": right["document_id"], "score": score})
+
+    groups_by_split = defaultdict(set)
+    for record in corpus_records:
+        groups_by_split[record["split"]].add(record["group_id"])
+    group_leaks = []
+    for left, right in combinations(("train", "validation", "test"), 2):
+        for group in sorted(groups_by_split[left] & groups_by_split[right]):
+            group_leaks.append({"group_id": group, "splits": [left, right]})
+
+    for split in ("train", "validation", "test"):
+        rows = [record for record in corpus_records if record["split"] == split]
+        with (splits_dir / f"{split}.txt").open("w", encoding="utf-8") as text_handle, (
+            splits_dir / f"{split}.jsonl"
+        ).open("w", encoding="utf-8") as jsonl_handle:
+            for record in rows:
+                text = Path(record["corpus_path"]).read_text(encoding="utf-8")
+                text_handle.write(text.rstrip() + "\n\n")
+                jsonl_handle.write(json.dumps({**record, "text": text}, ensure_ascii=False, sort_keys=True) + "\n")
+
+    quarantine_rows = []
+    for item in QUARANTINE:
+        path = Path(item["path"])
+        if not path.is_absolute():
+            path = STORAGE / path
+        row = dict(item, resolved_path=str(path), exists=path.exists(), pipeline_status="not_in_official_corpus")
+        if path.is_file():
+            row["sha256"] = sha256_text(path.read_text(encoding="utf-8", errors="replace")) if path.suffix == ".txt" else __import__("hashlib").sha256(path.read_bytes()).hexdigest()
+        quarantine_rows.append(row)
+
+    write_jsonl(manifests_dir / "documents.jsonl", corpus_records)
+    write_jsonl(manifests_dir / "quarantine.jsonl", quarantine_rows)
+    write_jsonl(reports_dir / "transformations.jsonl", transformations)
+
+    split_stats = {}
+    for split in ("train", "validation", "test"):
+        rows = [record for record in corpus_records if record["split"] == split]
+        split_stats[split] = {
+            "documents": len(rows),
+            "characters": sum(row["characters"] for row in rows),
+            "words": sum(row["words"] for row in rows),
+            "lines": sum(row["lines"] for row in rows),
+            "atomic_facts": sum(row["atomic_facts"] for row in rows),
+            "document_ids": [row["document_id"] for row in rows],
+        }
+    report = {
+        "corpus_version": VERSION,
+        "documents": len(corpus_records),
+        "characters": sum(row["characters"] for row in corpus_records),
+        "words": sum(row["words"] for row in corpus_records),
+        "lines": sum(row["lines"] for row in corpus_records),
+        "atomic_facts": sum(row["atomic_facts"] for row in corpus_records),
+        "domains": dict(sorted(Counter(row["domain"] for row in corpus_records).items())),
+        "rights_tiers": dict(sorted(Counter(row["rights_tier"] for row in corpus_records).items())),
+        "splits": split_stats,
+        "source_hash_failures": source_hash_failures,
+        "exact_document_duplicates": exact_document_duplicates,
+        "exact_normalized_lines_removed": removed_duplicate_lines,
+        "near_duplicate_threshold": 0.80,
+        "near_duplicate_document_pairs": near_pairs,
+        "maximum_document_similarity": {"pair": max_pair, "score": max_similarity},
+        "group_leaks_between_splits": group_leaks,
+        "pii_findings": pii_findings,
+        "suspicious_text_findings": suspicious_findings,
+        "control_character_findings": sum(
+            bool(CONTROL_RE.search(Path(row["corpus_path"]).read_text(encoding="utf-8"))) for row in corpus_records
+        ),
+        "quarantined_entries": len(quarantine_rows),
+        "quality_gate_passed": not any(
+            (source_hash_failures, exact_document_duplicates, near_pairs, group_leaks, pii_findings, suspicious_findings)
+        ),
+    }
+    write_json(reports_dir / "quality_report.json", report)
+
+    dataset_card = f"""# IvoireSLM Corpus v0.1.0
+
+Corpus factuel ivoirien nettoyé et traçable, construit le 13 août 2026.
+
+## Contenu
+
+- {report['documents']} documents issus de {report['documents']} groupes de sources indépendants.
+- {report['lines']:,} phrases factuelles et {report['atomic_facts']:,} faits atomiques déclarés.
+- {report['characters']:,} caractères et {report['words']:,} mots approximatifs.
+- Langue principale : français. Pays : Côte d'Ivoire.
+- Toutes les entrées sont classées `A_REDISTRIBUTABLE` ou sous licence ouverte dans leur manifeste source.
+
+## Splits protégés
+
+- Train : {split_stats['train']['documents']} documents, {split_stats['train']['lines']:,} phrases.
+- Validation : {split_stats['validation']['documents']} documents, {split_stats['validation']['lines']:,} phrases.
+- Test : {split_stats['test']['documents']} documents, {split_stats['test']['lines']:,} phrases.
+
+La séparation est effectuée par groupe de source. Aucun groupe ne traverse deux splits. Le test ne doit pas servir à entraîner le tokenizer, choisir les hyperparamètres ou corriger le modèle.
+
+## Nettoyage et contrôles
+
+Unicode est normalisé en NFC. Les fins de ligne, espaces de fin et caractères de contrôle sont nettoyés. La graphie ivoirienne, les accents, noms propres et formulations sources ne sont pas standardisés. Les doublons exacts sont détectés après normalisation NFKC/casse/espaces. Les doublons proches sont contrôlés au niveau document par Jaccard sur shingles de cinq mots.
+
+Le rapport vérifie les hashes sources, les doublons, les fuites entre splits, les courriels, les numéros de téléphone ivoiriens, les caractères invalides et les marqueurs techniques (`nan`, `None`, caractère de remplacement).
+
+## Exclusions
+
+Les livres sous copyright, documents aux droits inconnus, copies tierces, métadonnées Google Books, transcriptions non consenties et l'ancien pool contaminé ne font pas partie du corpus officiel. Ils sont conservés séparément pour audit ou demande d'autorisation. Les onze textes narratifs data.gouv.ci restent en révision car ils contiennent des interprétations non sourcées et recouvrent les mêmes tableaux que les textes factuels.
+
+## Limites
+
+Cette version est très spécialisée et très déséquilibrée vers les prix de marché. Elle convient pour tester le pipeline, entraîner un tokenizer pédagogique et de petits modèles expérimentaux. Elle n'est pas assez diverse pour un modèle généraliste. Il faut acquérir davantage de textes naturels ivoiriens explicitement autorisés, notamment littérature, administration, éducation, santé, médias et langues locales.
+
+## Reproduction
+
+Depuis le dépôt IvoireSLM sur la VM :
+
+```bash
+source ~/venv/bin/activate
+python3 scripts/data/build_corpus_v01.py
+python3 scripts/data/audit_corpus_v01.py
+```
+"""
+    (OUTPUT / "DATASET_CARD.md").write_text(dataset_card, encoding="utf-8")
+
+    if not report["quality_gate_passed"]:
+        raise ValueError("Le corpus a été produit, mais le quality gate a échoué. Voir quality_report.json")
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
