@@ -7,7 +7,8 @@ import subprocess
 from pathlib import Path
 
 
-SAFE_NAME = re.compile(r"^[a-z0-9_]+$")
+SAFE_COMPONENT = re.compile(r"^[a-z0-9_]+$")
+SAFE_VERSIONED_NAME = re.compile(r"^[a-z0-9_.-]+$")
 STORAGE = Path.home() / "ivoireslm-storage"
 
 
@@ -26,9 +27,12 @@ parser.add_argument("--snapshot", default="ivoiredata_2026-08-13_growth_v0.2")
 parser.add_argument("--container", default="ivoiredata-api-1")
 args = parser.parse_args()
 
-for value in (args.domain, args.source_id, args.snapshot, args.container):
-    if not SAFE_NAME.fullmatch(value.replace("-", "_")):
-        raise SystemExit(f"Nom non sûr : {value}")
+for value in (args.domain, args.source_id):
+    if not SAFE_COMPONENT.fullmatch(value):
+        raise SystemExit(f"Composant non sûr : {value}")
+for value in (args.snapshot, args.container):
+    if not SAFE_VERSIONED_NAME.fullmatch(value):
+        raise SystemExit(f"Nom versionné non sûr : {value}")
 
 container_source = f"/app/data_lake/domains/{args.domain}/{args.source_id}"
 probe = subprocess.run(
