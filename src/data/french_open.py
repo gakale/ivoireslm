@@ -23,7 +23,7 @@ def valid_documentation_block(text):
     return sum(character.isalpha() for character in text) >= 20
 
 
-def dictionary_definitions(entry):
+def dictionary_senses(entry):
     definitions = []
     seen = set()
     for sense in entry.get("senses", []):
@@ -36,8 +36,17 @@ def dictionary_definitions(entry):
         key = definition.casefold()
         if len(definition) >= 20 and key not in seen:
             seen.add(key)
-            definitions.append(definition)
+            labels = []
+            for label in sense.get("raw_tags") or sense.get("tags") or []:
+                cleaned_label = clean_open_french_text(label)
+                if cleaned_label and cleaned_label not in {"form-of", "alt-of"}:
+                    labels.append(cleaned_label)
+            definitions.append({"definition": definition, "labels": labels[:5]})
     return definitions
+
+
+def dictionary_definitions(entry):
+    return [sense["definition"] for sense in dictionary_senses(entry)]
 
 
 def render_dictionary_entry(entry):
@@ -45,8 +54,8 @@ def render_dictionary_entry(entry):
     part_of_speech = clean_open_french_text(
         entry.get("pos_title") or entry.get("pos") or "catégorie non renseignée"
     )
-    definitions = dictionary_definitions(entry)
-    if not definitions:
+    senses = dictionary_senses(entry)
+    if not senses:
         raise ValueError("Une définition Wiktionnaire est requise")
     sections = [f"Dans le Wiktionnaire français, « {word} » est classé comme {part_of_speech}."]
     etymologies = entry.get("etymology_texts") or []
@@ -54,6 +63,9 @@ def render_dictionary_entry(entry):
         etymology = clean_open_french_text(etymologies[0])
         if len(etymology) >= 10:
             sections.append(f"Étymologie indiquée : {etymology}")
-    for index, definition in enumerate(definitions, 1):
-        sections.append(f"Sens {index} : {definition}")
+    for index, sense in enumerate(senses, 1):
+        usage = ""
+        if sense["labels"]:
+            usage = " (marques d’usage : " + ", ".join(sense["labels"]) + ")"
+        sections.append(f"Sens {index}{usage} : {sense['definition']}")
     return " ".join(sections)
