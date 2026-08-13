@@ -1,7 +1,6 @@
 import json
 import hashlib
 import os
-import re
 import shutil
 import sys
 from collections import Counter, defaultdict
@@ -14,6 +13,8 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
 from data.corpus import (
     CONTROL_RE,
+    EMAIL_RE,
+    PHONE_RE,
     jaccard,
     normalize_text,
     normalized_line_key,
@@ -134,10 +135,6 @@ QUARANTINE = [
         "reason": "instruction_or_synthetic_provenance_not_validated_and_roadmap_excludes_external_synthetic_data",
     },
 ]
-
-EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
-PHONE_RE = re.compile(r"(?<!\d)(?:\+225[ .-]?)?(?:0[157][ .-]?)(?:\d[ .-]?){8}(?!\d)")
-
 
 def read_jsonl(path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
