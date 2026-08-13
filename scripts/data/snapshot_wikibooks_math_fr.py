@@ -1,9 +1,10 @@
 import hashlib
 import json
-import shutil
+import threading
 import time
 import urllib.parse
 import urllib.request
+from urllib.error import HTTPError
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -16,23 +17,37 @@ API = "https://fr.wikibooks.org/w/api.php"
 ROOT_CATEGORY = "Catégorie:Mathématiques"
 MAX_DEPTH = 3
 USER_AGENT = "IvoireSLM corpus builder/0.5 (https://github.com/gakale/ivoireslm)"
+REQUEST_LOCK = threading.Lock()
+LAST_REQUEST_AT = 0.0
+MIN_REQUEST_INTERVAL = 0.5
 
 
 def api_call(**parameters):
+    global LAST_REQUEST_AT
     parameters.setdefault("action", "query")
     parameters.update(format="json", formatversion="2")
     request = urllib.request.Request(
         API + "?" + urllib.parse.urlencode(parameters),
         headers={"User-Agent": USER_AGENT},
     )
-    for attempt in range(5):
+    for attempt in range(8):
         try:
+            with REQUEST_LOCK:
+                delay = MIN_REQUEST_INTERVAL - (time.monotonic() - LAST_REQUEST_AT)
+                if delay > 0:
+                    time.sleep(delay)
+                LAST_REQUEST_AT = time.monotonic()
             with urllib.request.urlopen(request, timeout=120) as response:
                 return json.load(response)
-        except Exception:
-            if attempt == 4:
+        except HTTPError as error:
+            if attempt == 7:
                 raise
-            time.sleep(2 ** attempt)
+            retry_after = float(error.headers.get("Retry-After") or 0)
+            time.sleep(max(retry_after, min(60, 2 ** attempt)))
+        except Exception:
+            if attempt == 7:
+                raise
+            time.sleep(min(60, 2 ** attempt))
 
 
 def category_members(category):
@@ -57,9 +72,9 @@ if SNAPSHOT.exists():
         raise SystemExit(f"Snapshot existant sans manifeste : {SNAPSHOT}")
     print(f"Snapshot déjà présent : {SNAPSHOT}")
     raise SystemExit(0)
-if PARTIAL.exists():
-    shutil.rmtree(PARTIAL)
 PARTIAL.mkdir(parents=True)
+PAGE_CACHE = PARTIAL / "rendered_pages"
+PAGE_CACHE.mkdir(exist_ok=True)
 
 categories = {}
 pages = defaultdict(set)
@@ -76,13 +91,16 @@ while queue:
             pages[member["pageid"]].add(category)
 
 def parse_page(page_id):
+    cache_path = PAGE_CACHE / f"{page_id}.json"
+    if cache_path.is_file():
+        return json.loads(cache_path.read_text(encoding="utf-8"))
     payload = api_call(
         action="parse",
         pageid=page_id,
         prop="text|revid|displaytitle",
         disableeditsection="1",
     )["parse"]
-    return {
+    record = {
         "requested_pageid": page_id,
         "pageid": payload["pageid"],
         "title": payload["title"],
@@ -90,36 +108,44 @@ def parse_page(page_id):
         "categories": sorted(pages[page_id]),
         "html": payload["text"],
     }
+    temporary = cache_path.with_suffix(".json.partial")
+    temporary.write_text(
+        json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(cache_path)
+    return record
 
 
 output = PARTIAL / "pages.jsonl"
 page_ids = sorted(pages)
 records = []
-with ThreadPoolExecutor(max_workers=6) as executor:
+with ThreadPoolExecutor(max_workers=2) as executor:
     futures = {executor.submit(parse_page, page_id): page_id for page_id in page_ids}
     for index, future in enumerate(as_completed(futures), 1):
         records.append(future.result())
         if index % 100 == 0:
             print(f"Pages rendues : {index}/{len(page_ids)}")
 
-metadata_by_page = {}
-for offset in range(0, len(page_ids), 50):
-    batch = page_ids[offset : offset + 50]
+metadata_by_revision = {}
+revision_ids = sorted(record["revid"] for record in records)
+for offset in range(0, len(revision_ids), 50):
+    batch = revision_ids[offset : offset + 50]
     payload = api_call(
         prop="revisions",
-        pageids="|".join(map(str, batch)),
+        revids="|".join(map(str, batch)),
         rvprop="ids|timestamp|sha1",
     )
     for page in payload["query"]["pages"]:
         if page.get("missing"):
             continue
         revision = page["revisions"][0]
-        metadata_by_page[page["pageid"]] = revision
+        metadata_by_revision[revision["revid"]] = revision
 
 for record in records:
-    revision = metadata_by_page.get(record["requested_pageid"])
-    if not revision or revision["revid"] != record["revid"]:
-        raise ValueError(f"Révision instable pendant le snapshot : {record['title']}")
+    revision = metadata_by_revision.get(record["revid"])
+    if not revision:
+        raise ValueError(f"Métadonnées de révision absentes : {record['title']}")
     record["parentid"] = revision.get("parentid")
     record["revision_timestamp"] = revision["timestamp"]
     record["revision_sha1"] = revision["sha1"]
