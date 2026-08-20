@@ -1,7 +1,8 @@
 model:
-  name: bigram
-  vocab_size: 256
+  name: bigram_ci_v0.1
+  tokenizer: ivoireslm_character_v0.1
 training:
-  batch_size: 32
-  learning_rate: 0.001
-  max_steps: 5000
+  method: maximum_likelihood_transition_counts
+  laplace_alpha: 0.1
+  seed: 20260820
+  generation_tokens: 600
