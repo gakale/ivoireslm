@@ -1,0 +1,15 @@
+model:
+  name: contextual_mlp_ci_v0.1
+  context_size: 16
+  embedding_dim: 32
+  hidden_dim: 128
+  dropout: 0.1
+training:
+  batch_size: 256
+  learning_rate: 0.001
+  max_steps: 10000
+  evaluation_batches: 128
+  log_every: 100
+  generation_tokens: 800
+  temperature: 0.8
+  seed: 20260822

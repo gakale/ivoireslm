@@ -16,6 +16,7 @@ La roadmap maître complète est conservée sur la VM à l'emplacement :
 | 5 | Analyse et splits | 🟩 Validé pour v0.1.0 | Splits par groupe, dataset card et audit |
 | 6 | Tokenizer caractère | 🟩 Validé | 1 142 tokens, round-trip et couverture validés sur v0.5.0 |
 | 7 | Bigram-CI | 🟩 Validé | Loss validation 2,4735, checkpoint et rapport enregistrés |
+| 8 | Embeddings et réseau contextuel | 🟩 Expérience validée | MLP CPU reproductible ; PPL test 16,3381, baseline conservée car Bigram = 15,5437 |
 
 ## Corpus officiel actuel
 
@@ -30,4 +31,4 @@ Voir [le rapport de livraison](reports/data/CORPUS_V0.1.0_RELEASE.md).
 
 ## Prochaine action
 
-Entraîner et évaluer le tokenizer caractère de référence uniquement sur `train.txt`. Le split `test` reste gelé. En parallèle, poursuivre l'acquisition de textes naturels ivoiriens dont les droits sont explicitement compatibles.
+Construire un petit modèle causal avec attention, compatible CPU, puis le comparer aux deux baselines avec le même test gelé. Le seuil minimal est une perplexité test inférieure à 15,5437. En parallèle, poursuivre l'acquisition de textes naturels ivoiriens dont les droits sont explicitement compatibles.
