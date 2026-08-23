@@ -17,8 +17,11 @@ from tokenizer.character import CharacterTokenizer, SPECIAL_TOKENS
 
 
 STORAGE_ROOT = Path(os.environ.get("IVOIRESLM_STORAGE_ROOT", Path.home() / "ivoireslm-storage"))
-CORPUS_ROOT = STORAGE_ROOT / "corpora/ivoireslm_corpus_v0.5.0"
-OUTPUT_ROOT = STORAGE_ROOT / "tokenizers/character_v0.1"
+CORPUS_VERSION = os.environ.get("IVOIRESLM_CORPUS_VERSION", "ivoireslm_corpus_v0.5.0")
+TOKENIZER_VERSION = os.environ.get("IVOIRESLM_TOKENIZER_VERSION", "character_v0.1")
+TOKENIZER_ID = os.environ.get("IVOIRESLM_TOKENIZER_ID", "ivoireslm_character_v0.1")
+CORPUS_ROOT = STORAGE_ROOT / "corpora" / CORPUS_VERSION
+OUTPUT_ROOT = STORAGE_ROOT / "tokenizers" / TOKENIZER_VERSION
 CHUNK_SIZE = 1 << 20
 
 
@@ -84,8 +87,8 @@ def main() -> None:
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     tokenizer_path = OUTPUT_ROOT / "tokenizer.json"
     tokenizer_record = {
-        "tokenizer_id": "ivoireslm_character_v0.1",
-        "corpus_version": "ivoireslm_corpus_v0.5.0",
+        "tokenizer_id": TOKENIZER_ID,
+        "corpus_version": CORPUS_VERSION,
         "training_split": "train",
         "algorithm": "unicode_character_sorted_codepoint",
         "binary_dtype": "uint16_native_little_endian",
@@ -113,7 +116,7 @@ def main() -> None:
         raise RuntimeError("le split train contient des caractères inconnus")
 
     report = {
-        "tokenizer_id": "ivoireslm_character_v0.1",
+        "tokenizer_id": TOKENIZER_ID,
         "tokenizer_path": str(tokenizer_path),
         "tokenizer_sha256": sha256(tokenizer_path),
         "vocab_size": tokenizer.vocab_size,

@@ -17,6 +17,8 @@ La roadmap maître complète est conservée sur la VM à l'emplacement :
 | 6 | Tokenizer caractère | 🟩 Validé | 1 142 tokens, round-trip et couverture validés sur v0.5.0 |
 | 7 | Bigram-CI | 🟩 Validé | Loss validation 2,4735, checkpoint et rapport enregistrés |
 | 8 | Embeddings et réseau contextuel | 🟩 Expérience validée | MLP CPU reproductible ; PPL test 16,3381, baseline conservée car Bigram = 15,5437 |
+| 9 | MicroIvoire Transformer v0.1 | 🟩 Validé | 1 100 032 paramètres ; PPL test 14,3929 ; reprise Cloud Storage vérifiée |
+| 10 | Corpus v0.6 et tokenizer v0.2 | 🟩 Validé | Corpus rééquilibré, mathématiques vérifiées, nouveau test gelé et 0 % UNK |
 
 ## Corpus officiel actuel
 
@@ -31,4 +33,4 @@ Voir [le rapport de livraison](reports/data/CORPUS_V0.1.0_RELEASE.md).
 
 ## Prochaine action
 
-Construire un petit modèle causal avec attention, compatible CPU, puis le comparer aux deux baselines avec le même test gelé. Le seuil minimal est une perplexité test inférieure à 15,5437. En parallèle, poursuivre l'acquisition de textes naturels ivoiriens dont les droits sont explicitement compatibles.
+Entraîner sur Colab MicroIvoire Transformer v0.2 d'environ 5 millions de paramètres avec le corpus v0.6 et le tokenizer caractère v0.2. Sélectionner le checkpoint uniquement avec la validation et ne consulter le nouveau test gelé qu'après la sélection finale.
