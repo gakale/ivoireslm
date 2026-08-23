@@ -19,18 +19,19 @@ La roadmap maître complète est conservée sur la VM à l'emplacement :
 | 8 | Embeddings et réseau contextuel | 🟩 Expérience validée | MLP CPU reproductible ; PPL test 16,3381, baseline conservée car Bigram = 15,5437 |
 | 9 | MicroIvoire Transformer v0.1 | 🟩 Validé | 1 100 032 paramètres ; PPL test 14,3929 ; reprise Cloud Storage vérifiée |
 | 10 | Corpus v0.6 et tokenizer v0.2 | 🟩 Validé | Corpus rééquilibré, mathématiques vérifiées, nouveau test gelé et 0 % UNK |
+| 11 | MicroIvoire Transformer v0.2 5M | 🟩 Validé | 4 758 144 paramètres ; meilleur pas 9 250 ; PPL validation 3,3816 et test gelé 3,0791 |
 
 ## Corpus officiel actuel
 
-Version : `ivoireslm_corpus_v0.5.0`  
-Documents : 19  
-Caractères : 36 151 493, dont 47,5555 % associés à la Côte d’Ivoire  
-Phrases : 184 155  
-Faits atomiques : 210 483  
+Version : `ivoireslm_corpus_v0.6.0`  
+Documents : 25  
+Caractères : 14 316 283, dont 11,3382 % de mathématiques vérifiées et 4,0867 % de français ivoirien naturel ajouté  
+Lignes : 83 983  
+Tokenizer : `ivoireslm_character_v0.2`, vocabulaire 722, 0 % UNK  
 Quality gate : réussi  
 
-Voir [le rapport de livraison](reports/data/CORPUS_V0.1.0_RELEASE.md).
+Voir [le rapport de livraison](reports/data/CORPUS_V0.6.0_RELEASE.md).
 
 ## Prochaine action
 
-Entraîner sur Colab MicroIvoire Transformer v0.2 d'environ 5 millions de paramètres avec le corpus v0.6 et le tokenizer caractère v0.2. Sélectionner le checkpoint uniquement avec la validation et ne consulter le nouveau test gelé qu'après la sélection finale.
+Construire une évaluation automatique dédiée aux mathématiques, entraîner les baselines sur les mêmes splits v0.2 et créer un jeu de corrections humaines. La perplexité globale ne suffit pas à prouver que les réponses factuelles ou mathématiques sont correctes.
