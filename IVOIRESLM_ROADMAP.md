@@ -20,6 +20,7 @@ La roadmap maître complète est conservée sur la VM à l'emplacement :
 | 9 | MicroIvoire Transformer v0.1 | 🟩 Validé | 1 100 032 paramètres ; PPL test 14,3929 ; reprise Cloud Storage vérifiée |
 | 10 | Corpus v0.6 et tokenizer v0.2 | 🟩 Validé | Corpus rééquilibré, mathématiques vérifiées, nouveau test gelé et 0 % UNK |
 | 11 | MicroIvoire Transformer v0.2 5M | 🟩 Validé | 4 758 144 paramètres ; meilleur pas 9 250 ; PPL validation 3,3816 et test gelé 3,0791 |
+| 12 | Évaluation mathématique et préparation SFT | 🟨 Données prêtes | Benchmark développement : 0/1 000 exact ; 50 000 corrections automatiques ; benchmark final scellé |
 
 ## Corpus officiel actuel
 
@@ -34,4 +35,4 @@ Voir [le rapport de livraison](reports/data/CORPUS_V0.6.0_RELEASE.md).
 
 ## Prochaine action
 
-Construire une évaluation automatique dédiée aux mathématiques, entraîner les baselines sur les mêmes splits v0.2 et créer un jeu de corrections humaines. La perplexité globale ne suffit pas à prouver que les réponses factuelles ou mathématiques sont correctes.
+Fine-tuner le checkpoint 5M sur `math_sft_v0.1` avec une loss limitée aux méthodes, solutions et réponses, puis mesurer le benchmark de développement. Sélectionner le checkpoint sans ouvrir `math_reasoning_final_v0.2`, qui ne sera évalué qu'une fois à la fin.
