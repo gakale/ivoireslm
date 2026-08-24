@@ -11,3 +11,5 @@ IvoireSLM est un projet d'entraînement et d'évaluation de petits modèles de l
 - `checkpoints/`, `reports/`, `logs/` : sorties d'entraînement et d'évaluation.
 
 Consultez [la feuille de route](IVOIRESLM_ROADMAP.md) pour les prochaines étapes.
+
+Le journal technique [du Bigram au Transformer 5M](docs/IVOIRESLM_PARCOURS_BIGRAM_A_5M.md) rassemble la chronologie, les résultats, les preuves et les leçons apprises.
