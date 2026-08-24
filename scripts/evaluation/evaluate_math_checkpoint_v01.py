@@ -159,6 +159,7 @@ def main() -> None:
             {
                 "benchmark_id": record["benchmark_id"],
                 "family": record["family"],
+                "difficulty": record.get("difficulty"),
                 "prompt": record["prompt"],
                 "reference_answer": record["reference_answer"],
                 "completion": completion,
@@ -181,13 +182,26 @@ def main() -> None:
     write_predictions(predictions_path, predictions)
 
     family_counts = defaultdict(Counter)
+    difficulty_counts = defaultdict(Counter)
     for row in predictions:
         family_counts[row["family"]]["total"] += 1
         family_counts[row["family"]]["formatted"] += int(row["formatted"])
         family_counts[row["family"]]["correct"] += int(row["correct"])
+        if row.get("difficulty") is not None:
+            key = str(row["difficulty"])
+            difficulty_counts[key]["total"] += 1
+            difficulty_counts[key]["formatted"] += int(row["formatted"])
+            difficulty_counts[key]["correct"] += int(row["correct"])
     families = {}
     for family, counts in sorted(family_counts.items()):
         families[family] = {
+            **dict(counts),
+            "format_rate": counts["formatted"] / counts["total"],
+            "exact_accuracy": counts["correct"] / counts["total"],
+        }
+    difficulties = {}
+    for difficulty, counts in sorted(difficulty_counts.items()):
+        difficulties[difficulty] = {
             **dict(counts),
             "format_rate": counts["formatted"] / counts["total"],
             "exact_accuracy": counts["correct"] / counts["total"],
@@ -197,7 +211,7 @@ def main() -> None:
     formatted = sum(row["formatted"] for row in predictions)
     correct = sum(row["correct"] for row in predictions)
     report = {
-        "evaluation_id": "microivoire_transformer_v0.2_5m_math_reasoning_v0.1",
+        "evaluation_id": f"{config.model_id}_{args.benchmark.parent.name}",
         "model_id": config.model_id,
         "checkpoint_step": int(checkpoint["step"]),
         "checkpoint_sha256": sha256(args.checkpoint),
@@ -210,6 +224,7 @@ def main() -> None:
         "format_rate": formatted / total,
         "exact_accuracy": correct / total,
         "families": families,
+        "difficulties": difficulties,
         "predictions_sha256": sha256(predictions_path),
         "elapsed_seconds": time.monotonic() - started,
     }
