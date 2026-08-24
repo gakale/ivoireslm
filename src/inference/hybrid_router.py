@@ -43,9 +43,10 @@ class HybridResponse:
 
 
 MATH_INTENT = re.compile(
-    r"(?:\[MATHÉMATIQUES|\bcalculer\b|\brésoudre\b|\béquation\b|\bfraction\b|"
+    r"(?:\[MATHÉMATIQUES|\bcalculer\b|\bcombien\s+(?:font|fait)\b|"
+    r"\bça\s+fait\s+combien\b|\brésoudre\b|\béquation\b|\bfraction\b|"
     r"\bpourcentage\b|\brectangle\b|\bsuite\s+arithmétique\b|\bmonnaie\b|"
-    r"\bcoopérative\b)",
+    r"\bcoopérative\b|\d\s*[+*/×÷-]\s*\d)",
     flags=re.IGNORECASE,
 )
 

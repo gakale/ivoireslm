@@ -43,6 +43,14 @@ def test_interface_exposes_verified_math_route(monkeypatch):
     assert detail == "Calcul déterministe contrôlé."
 
 
+def test_interface_handles_original_natural_question(monkeypatch):
+    answer = _controller(monkeypatch)
+    response, route, status, _detail = answer("combien font 2+2")
+    assert "Réponse : 4" in response
+    assert route == "deterministic_math_tool_v0.1"
+    assert "vérifiée" in status
+
+
 def test_interface_exposes_unverified_transformer_route(monkeypatch):
     answer = _controller(monkeypatch)
     response, route, status, detail = answer("La Côte d’Ivoire")

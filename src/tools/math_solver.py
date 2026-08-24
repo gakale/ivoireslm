@@ -5,6 +5,7 @@ benchmark : celle-ci reste réservée à l'évaluation indépendante.
 """
 from __future__ import annotations
 
+import ast
 import math
 import re
 from dataclasses import dataclass
@@ -37,10 +38,69 @@ class MathSolution:
 
 
 INTEGER = r"([-+]?\d+)"
+MAX_ABSOLUTE_VALUE = 10**18
 
 
 def _fullmatch(pattern: str, problem: str) -> re.Match[str] | None:
     return re.fullmatch(pattern, problem.strip(), flags=re.IGNORECASE)
+
+
+def _safe_arithmetic(node: ast.AST) -> Fraction:
+    """Évalue un arbre arithmétique fermé, sans appel de code Python."""
+    if isinstance(node, ast.Expression):
+        return _safe_arithmetic(node.body)
+    if isinstance(node, ast.Constant) and isinstance(node.value, int):
+        if abs(node.value) > MAX_ABSOLUTE_VALUE:
+            raise UnsupportedMathProblem("nombre trop grand")
+        return Fraction(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        value = _safe_arithmetic(node.operand)
+        return value if isinstance(node.op, ast.UAdd) else -value
+    if isinstance(node, ast.BinOp):
+        left, right = _safe_arithmetic(node.left), _safe_arithmetic(node.right)
+        if isinstance(node.op, ast.Add):
+            value = left + right
+        elif isinstance(node.op, ast.Sub):
+            value = left - right
+        elif isinstance(node.op, ast.Mult):
+            value = left * right
+        elif isinstance(node.op, ast.Div):
+            if right == 0:
+                raise UnsupportedMathProblem("division par zéro")
+            value = left / right
+        elif isinstance(node.op, ast.Pow):
+            if right.denominator != 1 or not 0 <= right.numerator <= 10:
+                raise UnsupportedMathProblem("exposant non pris en charge")
+            value = left ** right.numerator
+        else:
+            raise UnsupportedMathProblem("opérateur non pris en charge")
+        if abs(value.numerator) > MAX_ABSOLUTE_VALUE or value.denominator > MAX_ABSOLUTE_VALUE:
+            raise UnsupportedMathProblem("résultat trop grand")
+        return value
+    raise UnsupportedMathProblem("expression arithmétique non autorisée")
+
+
+def _natural_arithmetic_expression(problem: str) -> tuple[str, Fraction] | None:
+    """Reconnaît une expression arithmétique libre mais strictement numérique."""
+    text = problem.strip().rstrip("?.!").strip()
+    prefixes = (
+        r"combien\s+(?:font|fait)",
+        r"quel(?:le)?\s+est\s+(?:le\s+résultat|la\s+valeur)\s+de",
+        r"(?:peux-tu\s+)?(?:calculer|calcule)",
+        r"ça\s+fait\s+combien",
+    )
+    prefix = re.match(rf"(?:{'|'.join(prefixes)})\s*:?[\s]*", text, flags=re.IGNORECASE)
+    expression = text[prefix.end() :].strip() if prefix else text
+    if not prefix and not re.fullmatch(r"[\d\s()+\-*/×÷^]+", expression):
+        return None
+    normalized = expression.replace("×", "*").replace("÷", "/").replace("^", "**")
+    if not re.fullmatch(r"[\d\s()+\-*/]+", normalized) or len(normalized) > 100:
+        return None
+    try:
+        tree = ast.parse(normalized, mode="eval")
+    except SyntaxError as exc:
+        raise UnsupportedMathProblem("expression arithmétique mal formée") from exc
+    return expression, _safe_arithmetic(tree)
 
 
 def solve_math_problem(problem: str) -> MathSolution:
@@ -70,6 +130,21 @@ def solve_math_problem(problem: str) -> MathSolution:
             "Multiplier les deux facteurs.",
             f"{left} × {right} = {result}.",
             str(result),
+        )
+
+    natural_arithmetic = _natural_arithmetic_expression(problem)
+    if natural_arithmetic:
+        expression, result = natural_arithmetic
+        answer = (
+            str(result.numerator)
+            if result.denominator == 1
+            else f"{result.numerator}/{result.denominator}"
+        )
+        return MathSolution(
+            "arithmetic_expression",
+            "Respecter les priorités opératoires, puis effectuer le calcul.",
+            f"{expression} = {answer}.",
+            answer,
         )
 
     match = _fullmatch(

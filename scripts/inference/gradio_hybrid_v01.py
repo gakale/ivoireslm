@@ -99,7 +99,8 @@ def main() -> None:
         gr.Markdown(
             "# IvoireSLM — Assistant hybride v0.1\n"
             "Les exercices pris en charge sont calculés par un moteur exact. "
-            "Les autres textes proviennent du petit Transformer 5M et doivent être vérifiés."
+            "Les autres textes proviennent du petit Transformer 5M expérimental et doivent être vérifiés. "
+            "Ce modèle n'est pas encore un assistant conversationnel général."
         )
         request = gr.Textbox(
             label="Ta question",
@@ -114,6 +115,7 @@ def main() -> None:
         detail = gr.Textbox(label="Explication du statut", interactive=False)
         gr.Examples(
             examples=[
+                ["combien font 2+2"],
                 ["Calculer 18 + 24."],
                 ["Soit x un nombre réel. Résoudre l’équation x² − 5x + 6 = 0."],
                 ["À Adjamé, Awa achète 7 paniers à 1250 FCFA et paie 10000 FCFA. Monnaie ?"],

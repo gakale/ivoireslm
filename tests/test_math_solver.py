@@ -75,6 +75,34 @@ def test_solver_accepts_natural_school_quadratic_notation():
     assert solve_math_problem(problem).answer == "x = 2 ou x = 3"
 
 
+@pytest.mark.parametrize(
+    ("prompt_text", "answer"),
+    (
+        ("combien font 2+2", "4"),
+        ("Combien fait (8 + 4) ÷ 3 ?", "4"),
+        ("Quel est le résultat de 7 × 9 ?", "63"),
+        ("Ça fait combien 2^5 ?", "32"),
+        ("(10 - 3) * 4", "28"),
+        ("Calculer 1 / 2.", "1/2"),
+    ),
+)
+def test_solver_accepts_safe_natural_arithmetic(prompt_text, answer):
+    assert solve_math_problem(prompt_text).answer == answer
+
+
+@pytest.mark.parametrize(
+    "prompt_text",
+    (
+        "combien font __import__('os').system('id')",
+        "combien font 2^999",
+        "combien font 4/0",
+    ),
+)
+def test_natural_arithmetic_rejects_code_and_unsafe_operations(prompt_text):
+    with pytest.raises(UnsupportedMathProblem):
+        solve_math_problem(prompt_text)
+
+
 def test_hybrid_router_extracts_problem_from_full_ivoireslm_prompt():
     record = generate_benchmark_exercise("ivorian_market_change", 12)
     routed = route_math_request(record["prompt"])
@@ -90,6 +118,16 @@ def test_hybrid_router_uses_tool_without_calling_language_model():
     result = route_request("Calculer 18 + 24.", forbidden_generator)
     assert result.route == "deterministic_math_tool_v0.1"
     assert "Réponse : 42" in result.response
+    assert result.verified
+
+
+def test_original_gradio_failure_now_routes_to_exact_math_tool():
+    result = route_request(
+        "combien font 2+2",
+        lambda _request: (_ for _ in ()).throw(AssertionError("Transformer appelé")),
+    )
+    assert result.route == "deterministic_math_tool_v0.1"
+    assert "Réponse : 4" in result.response
     assert result.verified
 
 
