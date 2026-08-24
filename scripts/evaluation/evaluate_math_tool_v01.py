@@ -55,13 +55,18 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--benchmark", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--limit", type=int)
+    parser.add_argument(
+        "--allow-final",
+        action="store_true",
+        help="autoriser explicitement l'unique évaluation du benchmark final gelé",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_arguments()
     # Vérifier le nom avant toute ouverture : le benchmark final reste aveugle.
-    if "final" in args.benchmark.parent.name.lower():
+    if "final" in args.benchmark.parent.name.lower() and not args.allow_final:
         raise RuntimeError("le benchmark final gelé ne doit pas être ouvert pendant le développement")
     benchmark = read_jsonl(args.benchmark)
     if args.limit is not None:
