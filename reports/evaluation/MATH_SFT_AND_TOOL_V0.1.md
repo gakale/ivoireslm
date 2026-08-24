@@ -21,7 +21,8 @@ IvoireSLM conserve deux responsabilités séparées :
    structure de la réponse ;
 2. `deterministic_math_tool_v0.1` analyse l'énoncé et garantit le calcul exact.
 
-Le moteur ne reçoit que le champ `problem`. Il n'accède ni à `expected`, ni à
+Le routeur reçoit le prompt IvoireSLM complet, en extrait uniquement le champ
+`problem`, puis appelle le moteur. Le moteur n'accède ni à `expected`, ni à
 `reference_answer`, ni aux données de vérification. Il refuse les énoncés
 inconnus ou ambigus au lieu de deviner.
 

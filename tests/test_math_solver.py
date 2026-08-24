@@ -13,6 +13,7 @@ from evaluation.math_benchmark import (
     generate_benchmark_exercise,
     score_completion,
 )
+from inference.hybrid_router import route_math_request
 from tools.math_solver import UnsupportedMathProblem, solve_math_problem
 
 
@@ -72,6 +73,14 @@ def test_solver_uses_problem_text_only():
 def test_solver_accepts_natural_school_quadratic_notation():
     problem = "Soit x un nombre réel. Résoudre l’équation x² − 5x + 6 = 0."
     assert solve_math_problem(problem).answer == "x = 2 ou x = 3"
+
+
+def test_hybrid_router_extracts_problem_from_full_ivoireslm_prompt():
+    record = generate_benchmark_exercise("ivorian_market_change", 12)
+    routed = route_math_request(record["prompt"])
+    assert routed.route == "deterministic_math_tool_v0.1"
+    assert routed.problem == record["problem"]
+    assert score_completion(record, routed.completion)["correct"]
 
 
 @pytest.mark.parametrize(

@@ -15,7 +15,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
 from evaluation.math_benchmark import score_completion
-from tools.math_solver import UnsupportedMathProblem, solve_math_problem
+from inference.hybrid_router import route_math_request
+from tools.math_solver import UnsupportedMathProblem
 
 
 def sha256(path: Path) -> str:
@@ -74,9 +75,9 @@ def main() -> None:
     for record in benchmark:
         error = None
         try:
-            solution = solve_math_problem(record["problem"])
-            completion = solution.completion
-            tool_family = solution.family
+            route = route_math_request(record["prompt"])
+            completion = route.completion
+            tool_family = route.solution.family
         except UnsupportedMathProblem as exc:
             completion = ""
             tool_family = None
@@ -113,7 +114,7 @@ def main() -> None:
         "evaluation_id": f"deterministic_math_tool_v0.1_{args.benchmark.parent.name}",
         "system_id": "deterministic_math_tool_v0.1",
         "benchmark_sha256": sha256(args.benchmark),
-        "input_contract": "problem_text_only",
+        "input_contract": "full_ivoireslm_prompt_via_hybrid_router",
         "total": total,
         "formatted_answers": formatted,
         "correct_answers": correct,
