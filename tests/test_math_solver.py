@@ -13,7 +13,7 @@ from evaluation.math_benchmark import (
     generate_benchmark_exercise,
     score_completion,
 )
-from inference.hybrid_router import route_math_request
+from inference.hybrid_router import route_math_request, route_request
 from tools.math_solver import UnsupportedMathProblem, solve_math_problem
 
 
@@ -81,6 +81,31 @@ def test_hybrid_router_extracts_problem_from_full_ivoireslm_prompt():
     assert routed.route == "deterministic_math_tool_v0.1"
     assert routed.problem == record["problem"]
     assert score_completion(record, routed.completion)["correct"]
+
+
+def test_hybrid_router_uses_tool_without_calling_language_model():
+    def forbidden_generator(_request):
+        raise AssertionError("le modèle de langue ne devait pas être appelé")
+
+    result = route_request("Calculer 18 + 24.", forbidden_generator)
+    assert result.route == "deterministic_math_tool_v0.1"
+    assert "Réponse : 42" in result.response
+    assert result.verified
+
+
+def test_hybrid_router_guards_unsupported_math_instead_of_guessing():
+    calls = []
+    result = route_request("Calculer l’intégrale de sin(x).", lambda text: calls.append(text))
+    assert result.route == "unsupported_math_guard"
+    assert result.verified
+    assert not calls
+
+
+def test_hybrid_router_sends_general_language_to_transformer_callback():
+    result = route_request("Présente la Côte d’Ivoire.", lambda text: f"MODÈLE::{text}")
+    assert result.route == "microivoire_transformer_v0.2_5m"
+    assert result.response == "MODÈLE::Présente la Côte d’Ivoire."
+    assert not result.verified
 
 
 @pytest.mark.parametrize(

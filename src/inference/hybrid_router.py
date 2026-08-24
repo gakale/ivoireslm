@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Callable
 
-from tools.math_solver import MathSolution, solve_math_problem
+from tools.math_solver import MathSolution, UnsupportedMathProblem, solve_math_problem
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,30 @@ class MathRouteResult:
             "problem": self.problem,
             **self.solution.as_dict(),
         }
+
+
+@dataclass(frozen=True)
+class HybridResponse:
+    route: str
+    response: str
+    verified: bool
+    detail: str | None = None
+
+    def as_dict(self) -> dict:
+        return {
+            "route": self.route,
+            "response": self.response,
+            "verified": self.verified,
+            "detail": self.detail,
+        }
+
+
+MATH_INTENT = re.compile(
+    r"(?:\[MATHÉMATIQUES|\bcalculer\b|\brésoudre\b|\béquation\b|\bfraction\b|"
+    r"\bpourcentage\b|\brectangle\b|\bsuite\s+arithmétique\b|\bmonnaie\b|"
+    r"\bcoopérative\b)",
+    flags=re.IGNORECASE,
+)
 
 
 def extract_problem(request: str) -> str:
@@ -45,4 +70,36 @@ def route_math_request(request: str) -> MathRouteResult:
         route="deterministic_math_tool_v0.1",
         problem=problem,
         solution=solve_math_problem(problem),
+    )
+
+
+def route_request(request: str, language_generator: Callable[[str], str]) -> HybridResponse:
+    """Route vers le calcul exact ou vers le modèle de langue.
+
+    Une demande clairement mathématique mais non prise en charge ne tombe jamais
+    silencieusement vers le Transformer : elle reçoit un refus explicite afin
+    d'éviter un résultat numérique inventé.
+    """
+    try:
+        result = route_math_request(request)
+        return HybridResponse(
+            route=result.route,
+            response=result.completion.strip(),
+            verified=True,
+        )
+    except UnsupportedMathProblem as exc:
+        if MATH_INTENT.search(request):
+            return HybridResponse(
+                route="unsupported_math_guard",
+                response=(
+                    "Je reconnais une demande mathématique, mais ce type d’exercice "
+                    "n’est pas encore pris en charge par mon moteur de calcul exact."
+                ),
+                verified=True,
+                detail=str(exc),
+            )
+    return HybridResponse(
+        route="microivoire_transformer_v0.2_5m",
+        response=language_generator(request),
+        verified=False,
     )

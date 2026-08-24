@@ -1,5 +1,10 @@
 """Routage et inférence pour IvoireSLM."""
 
-from .hybrid_router import MathRouteResult, route_math_request
+from .hybrid_router import (
+    HybridResponse,
+    MathRouteResult,
+    route_math_request,
+    route_request,
+)
 
-__all__ = ("MathRouteResult", "route_math_request")
+__all__ = ("HybridResponse", "MathRouteResult", "route_math_request", "route_request")
