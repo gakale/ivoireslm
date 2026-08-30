@@ -30,3 +30,8 @@ def test_bpe_v04_roundtrip(tmp_path):
     sample = "À Abidjan, 12 + 7 = 19."
     ids = tokenizer.encode(sample, add_special_tokens=False).ids
     assert tokenizer.decode(ids, skip_special_tokens=False) == sample
+
+
+def test_bpe_v04_targets_corpus_v09_and_promotes_multilingual_pilot():
+    assert MODULE.DEFAULT_CORPUS.name == "ivoireslm_corpus_v0.9.0"
+    assert MODULE.DEFAULT_SEED_TOKENIZER.parent.name == "bpe_multilingual_pilot_v0.1"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entraîne le BPE v0.4 sur le train v0.8 et encode les trois splits."""
+"""Promeut le BPE multilingue validé en v0.4 et encode le corpus v0.9."""
 from __future__ import annotations
 
 import argparse
@@ -15,8 +15,11 @@ from tokenizers import Tokenizer, decoders, models, normalizers, pre_tokenizers,
 STORAGE = Path(
     os.environ.get("IVOIRESLM_STORAGE_ROOT", Path.home() / "ivoireslm-storage")
 )
-DEFAULT_CORPUS = STORAGE / "corpora/ivoireslm_corpus_v0.8.0"
+DEFAULT_CORPUS = STORAGE / "corpora/ivoireslm_corpus_v0.9.0"
 DEFAULT_OUTPUT = STORAGE / "tokenizers/bpe_v0.4"
+DEFAULT_SEED_TOKENIZER = (
+    STORAGE / "tokenizers/bpe_multilingual_pilot_v0.1/tokenizer.json"
+)
 SPECIAL_TOKENS = ["<PAD>", "<UNK>", "<BOS>", "<EOS>"]
 
 
@@ -112,6 +115,9 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus-root", type=Path, default=DEFAULT_CORPUS)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--seed-tokenizer", type=Path, default=DEFAULT_SEED_TOKENIZER
+    )
     parser.add_argument("--vocab-size", type=int, default=8_192)
     return parser.parse_args()
 
@@ -122,6 +128,8 @@ def main() -> None:
         raise ValueError("vocabulaire trop grand pour uint16")
     if args.output_root.exists():
         raise FileExistsError(f"refus d'écraser {args.output_root}")
+    if not args.seed_tokenizer.is_file():
+        raise FileNotFoundError(args.seed_tokenizer)
     for split in ("train", "validation", "test"):
         path = args.corpus_root / f"splits/{split}.jsonl"
         if not path.is_file():
@@ -132,8 +140,7 @@ def main() -> None:
         raise FileExistsError(build_root)
     build_root.mkdir(parents=True)
 
-    train_path = args.corpus_root / "splits/train.jsonl"
-    tokenizer = build_tokenizer(train_path, args.vocab_size)
+    tokenizer = Tokenizer.from_file(str(args.seed_tokenizer))
     observed_vocab = tokenizer.get_vocab_size()
     if observed_vocab != args.vocab_size:
         raise AssertionError(
@@ -167,7 +174,13 @@ def main() -> None:
         "tokenizer_id": "ivoireslm_bpe_v0.4",
         "tokenizer_type": "byte_level_bpe",
         "tokenizers_version": __import__("tokenizers").__version__,
-        "corpus_id": "ivoireslm_corpus_v0.8.0",
+        "corpus_id": "ivoireslm_corpus_v0.9.0",
+        "promoted_from": "ivoireslm_bpe_multilingual_pilot_v0.1",
+        "seed_tokenizer_path": str(args.seed_tokenizer),
+        "seed_tokenizer_sha256": sha256_file(args.seed_tokenizer),
+        "promotion_reason": (
+            "multilingual fragmentation gates passed with French regression below 0.25%"
+        ),
         "vocab_size": observed_vocab,
         "special_tokens": SPECIAL_TOKENS,
         "training_split_only": True,
