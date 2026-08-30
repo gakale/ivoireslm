@@ -92,7 +92,7 @@ def main() -> None:
     for language, metrics in languages.items():
         metrics["relative_token_cost_vs_french"] = french_efficiency / metrics["characters_per_token"]
     report = {
-        "audit_id": "bpe_v0.3_multilingual_audit_v0.1",
+        "audit_id": "bpe_multilingual_audit_v0.1",
         "tokenizer_path": str(args.tokenizer),
         "tokenizer_sha256": sha256(args.tokenizer),
         "bundle_path": str(args.bundle),
@@ -110,4 +110,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
