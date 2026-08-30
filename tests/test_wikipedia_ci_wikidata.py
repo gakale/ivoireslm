@@ -17,6 +17,10 @@ def test_wikidata_query_uses_explicit_ivoirian_relations():
     assert MODULE.WIKIDATA_ROUTES["country"][0] == "P17"
     assert MODULE.WIKIDATA_ROUTES["citizenship"][0] == "P27"
     assert "FILTER NOT EXISTS" in MODULE.WIKIDATA_ROUTES["country"][1]
+    query = MODULE.render_wikidata_query(*MODULE.WIKIDATA_ROUTES["country"])
+    assert "WHERE {" in query
+    assert "wdt:P17 wd:Q1008" in query
+    assert "FILTER NOT EXISTS {" in query
 
 
 def test_stable_score_is_repeatable():

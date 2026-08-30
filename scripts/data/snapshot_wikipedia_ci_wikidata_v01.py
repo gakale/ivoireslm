@@ -33,12 +33,12 @@ MAX_WORKERS = 8
 RESOLUTION_BATCH_SIZE = 40
 
 WIKIDATA_QUERY_TEMPLATE = """
-SELECT DISTINCT ?article ?item WHERE {
+SELECT DISTINCT ?article ?item WHERE {{
   ?item wdt:{property_id} wd:Q1008.
   {exclusive_country_filter}
   ?article schema:about ?item;
            schema:isPartOf <https://fr.wikipedia.org/>.
-}
+}}
 LIMIT 10000
 """.strip()
 
@@ -90,16 +90,20 @@ def wikipedia_request(parameters: dict) -> dict:
     return request_json(f"{WIKIPEDIA_API}?{query}")
 
 
+def render_wikidata_query(property_id: str, exclusive_country_filter: str) -> str:
+    return WIKIDATA_QUERY_TEMPLATE.format(
+        property_id=property_id,
+        exclusive_country_filter=exclusive_country_filter,
+    )
+
+
 def discover_wikidata(output_root: Path) -> list[dict]:
     path = output_root / "wikidata_results.jsonl"
     if path.is_file():
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
     aggregated = {}
     for relation, (property_id, exclusive_country_filter) in WIKIDATA_ROUTES.items():
-        sparql = WIKIDATA_QUERY_TEMPLATE.format(
-            property_id=property_id,
-            exclusive_country_filter=exclusive_country_filter,
-        )
+        sparql = render_wikidata_query(property_id, exclusive_country_filter)
         query = urllib.parse.urlencode({"query": sparql, "format": "json"})
         payload = request_json(f"{WIKIDATA_URL}?{query}")
         bindings = payload["results"]["bindings"]
