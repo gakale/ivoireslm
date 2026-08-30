@@ -77,7 +77,10 @@ def verify_data(data_dir: Path, config: TrainingConfig) -> dict:
         observed = sha256_file(path)
         if observed != digest:
             raise ValueError(f"SHA256 incorrect pour {name}: {observed}")
-    print("Données BPE v0.3 et empreintes SHA256 validées ✅", flush=True)
+    print(
+        f"Données {config.tokenizer_id} / {config.corpus_id} et empreintes SHA256 validées ✅",
+        flush=True,
+    )
     return report
 
 
@@ -363,10 +366,10 @@ def generate(
     return tokenizer.decode(x[0].tolist(), skip_special_tokens=True)
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(default_output: Path = Path("/content/checkpoints_v03")) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, default=Path("/content/checkpoints_v03"))
+    parser.add_argument("--output-dir", type=Path, default=default_output)
     parser.add_argument("--gcs-output")
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--stop-step", type=int, default=5_200)
@@ -374,9 +377,9 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_arguments()
-    config = TrainingConfig()
+def main(config: TrainingConfig | None = None, default_output: Path | None = None) -> None:
+    config = config or TrainingConfig()
+    args = parse_arguments(default_output or Path("/content/checkpoints_v03"))
     if not 1 <= args.stop_step <= config.max_steps:
         raise ValueError(f"stop-step doit être entre 1 et {config.max_steps}")
     if args.allow_cpu_smoke_test and args.stop_step > 5:
