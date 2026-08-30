@@ -32,33 +32,25 @@ USER_AGENT = "IvoireSLM/0.5 (research corpus; https://github.com/gakale/ivoiresl
 MAX_WORKERS = 8
 RESOLUTION_BATCH_SIZE = 40
 
-WIKIDATA_QUERY = """
-SELECT DISTINCT ?article ?item ?relation WHERE {
-  {
-    ?item wdt:P17 wd:Q1008.
-    FILTER NOT EXISTS {
-      ?item wdt:P17 ?otherCountry.
-      FILTER (?otherCountry != wd:Q1008)
-    }
-    BIND("country" AS ?relation)
-  }
-  UNION {
-    ?item wdt:P27 wd:Q1008.
-    BIND("citizenship" AS ?relation)
-  }
-  UNION {
-    ?item wdt:P495 wd:Q1008.
-    BIND("country_of_origin" AS ?relation)
-  }
-  UNION {
-    ?item wdt:P1532 wd:Q1008.
-    BIND("country_for_sport" AS ?relation)
-  }
+WIKIDATA_QUERY_TEMPLATE = """
+SELECT DISTINCT ?article ?item WHERE {
+  ?item wdt:{property_id} wd:Q1008.
+  {exclusive_country_filter}
   ?article schema:about ?item;
            schema:isPartOf <https://fr.wikipedia.org/>.
 }
 LIMIT 10000
 """.strip()
+
+WIKIDATA_ROUTES = {
+    "country": (
+        "P17",
+        "FILTER NOT EXISTS { ?item wdt:P17 ?otherCountry. FILTER (?otherCountry != wd:Q1008) }",
+    ),
+    "citizenship": ("P27", ""),
+    "country_of_origin": ("P495", ""),
+    "country_for_sport": ("P1532", ""),
+}
 
 
 def sha256_file(path: Path) -> str:
@@ -79,13 +71,14 @@ def request_json(url: str, retries: int = 8) -> dict:
     for attempt in range(retries):
         try:
             with urllib.request.urlopen(request, timeout=150) as response:
-                return json.load(response)
+                raw = response.read()
+            return json.loads(raw)
         except HTTPError as error:
             if attempt + 1 == retries:
                 raise
             retry_after = error.headers.get("Retry-After")
             time.sleep(float(retry_after) if retry_after else min(30, 2**attempt))
-        except Exception:
+        except (json.JSONDecodeError, TimeoutError, OSError):
             if attempt + 1 == retries:
                 raise
             time.sleep(min(30, 2**attempt))
@@ -101,18 +94,25 @@ def discover_wikidata(output_root: Path) -> list[dict]:
     path = output_root / "wikidata_results.jsonl"
     if path.is_file():
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
-    query = urllib.parse.urlencode({"query": WIKIDATA_QUERY, "format": "json"})
-    payload = request_json(f"{WIKIDATA_URL}?{query}")
     aggregated = {}
-    for binding in payload["results"]["bindings"]:
-        article_url = binding["article"]["value"]
-        title = urllib.parse.unquote(article_url.split("/wiki/", 1)[1]).replace("_", " ")
-        record = aggregated.setdefault(
-            title,
-            {"requested_title": title, "wikidata_items": [], "relations": []},
+    for relation, (property_id, exclusive_country_filter) in WIKIDATA_ROUTES.items():
+        sparql = WIKIDATA_QUERY_TEMPLATE.format(
+            property_id=property_id,
+            exclusive_country_filter=exclusive_country_filter,
         )
-        record["wikidata_items"].append(binding["item"]["value"].rsplit("/", 1)[-1])
-        record["relations"].append(binding["relation"]["value"])
+        query = urllib.parse.urlencode({"query": sparql, "format": "json"})
+        payload = request_json(f"{WIKIDATA_URL}?{query}")
+        bindings = payload["results"]["bindings"]
+        print(f"découverte Wikidata {relation} : {len(bindings):,}", flush=True)
+        for binding in bindings:
+            article_url = binding["article"]["value"]
+            title = urllib.parse.unquote(article_url.split("/wiki/", 1)[1]).replace("_", " ")
+            record = aggregated.setdefault(
+                title,
+                {"requested_title": title, "wikidata_items": [], "relations": []},
+            )
+            record["wikidata_items"].append(binding["item"]["value"].rsplit("/", 1)[-1])
+            record["relations"].append(relation)
     records = []
     for record in aggregated.values():
         record["wikidata_items"] = sorted(set(record["wikidata_items"]))
@@ -278,7 +278,9 @@ def write_snapshot(output_root: Path, records: list[dict], discovered: int, reso
         "snapshot_id": "wikipedia_ci_wikidata_v0.1",
         "source": WIKIDATA_URL,
         "wikipedia_api": WIKIPEDIA_API,
-        "query_sha256": hashlib.sha256(WIKIDATA_QUERY.encode("utf-8")).hexdigest(),
+        "query_sha256": hashlib.sha256(
+            json.dumps(WIKIDATA_ROUTES, sort_keys=True).encode("utf-8")
+        ).hexdigest(),
         "discovered_wikidata_articles": discovered,
         "new_resolved_pages": resolved,
         "accepted_pages": len(records),
@@ -315,4 +317,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

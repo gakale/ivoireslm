@@ -13,10 +13,10 @@ SPEC.loader.exec_module(MODULE)
 
 
 def test_wikidata_query_uses_explicit_ivoirian_relations():
-    assert "wd:Q1008" in MODULE.WIKIDATA_QUERY
-    assert "wdt:P17" in MODULE.WIKIDATA_QUERY
-    assert "wdt:P27" in MODULE.WIKIDATA_QUERY
-    assert "FILTER NOT EXISTS" in MODULE.WIKIDATA_QUERY
+    assert "wd:Q1008" in MODULE.WIKIDATA_QUERY_TEMPLATE
+    assert MODULE.WIKIDATA_ROUTES["country"][0] == "P17"
+    assert MODULE.WIKIDATA_ROUTES["citizenship"][0] == "P27"
+    assert "FILTER NOT EXISTS" in MODULE.WIKIDATA_ROUTES["country"][1]
 
 
 def test_stable_score_is_repeatable():
