@@ -5,7 +5,12 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
-from data.ivoirian_languages import clean_transcription, extract_text_fields, stable_record_id
+from data.ivoirian_languages import (
+    clean_transcription,
+    extract_text_fields,
+    quality_statistics,
+    stable_record_id,
+)
 
 
 def test_clean_transcription_preserves_ivoirian_characters():
@@ -25,3 +30,9 @@ def test_stable_record_id_is_deterministic_and_split_specific():
     assert first == stable_record_id("dataset", "train", 12)
     assert first != stable_record_id("dataset", "test", 12)
 
+
+def test_quality_statistics_detects_duplicates_and_split_leaks():
+    result = quality_statistics({"train": ["a", "a", "b"], "test": ["b", "c"]})
+    assert result["internal_duplicates"] == {"train": 1, "test": 0}
+    assert result["cross_split_exact_overlaps"] == {"test__train": 1}
+    assert result["distinct_characters"] == 3

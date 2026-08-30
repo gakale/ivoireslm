@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import re
 import unicodedata
 from typing import Any
@@ -33,3 +34,17 @@ def extract_text_fields(row: dict[str, Any], field_languages: dict[str, str]) ->
             extracted[language] = text
     return extracted
 
+
+def quality_statistics(split_texts: dict[str, list[str]]) -> dict[str, Any]:
+    """Mesure doublons et fuites exactes entre splits d'une langue."""
+    text_sets = {split: set(texts) for split, texts in split_texts.items()}
+    overlaps = {}
+    for left, right in itertools.combinations(sorted(text_sets), 2):
+        overlaps[f"{left}__{right}"] = len(text_sets[left] & text_sets[right])
+    return {
+        "internal_duplicates": {
+            split: len(texts) - len(text_sets[split]) for split, texts in split_texts.items()
+        },
+        "cross_split_exact_overlaps": overlaps,
+        "distinct_characters": len(set("".join(text for texts in split_texts.values() for text in texts))),
+    }

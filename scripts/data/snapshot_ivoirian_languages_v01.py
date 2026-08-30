@@ -19,7 +19,7 @@ from urllib.error import HTTPError
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
-from data.ivoirian_languages import extract_text_fields, stable_record_id
+from data.ivoirian_languages import extract_text_fields, quality_statistics, stable_record_id
 
 
 API_ROOT = "https://datasets-server.huggingface.co"
@@ -152,6 +152,7 @@ def write_snapshot(source: Source, token: str | None) -> dict:
     source_root.mkdir(parents=True, exist_ok=True)
     split_reports = {}
     all_records = []
+    language_split_texts: dict[str, dict[str, list[str]]] = {}
     for split in discover_splits(source, token):
         records = fetch_split(source, split, token)
         all_records.extend(records)
@@ -160,6 +161,7 @@ def write_snapshot(source: Source, token: str | None) -> dict:
         for language in languages:
             path = source_root / f"{split}.{language}.txt"
             texts = [record["texts"][language] for record in records if language in record["texts"]]
+            language_split_texts.setdefault(language, {})[split] = texts
             path.write_text("\n".join(texts) + ("\n" if texts else ""), encoding="utf-8")
             artifacts[language] = {
                 "records": len(texts),
@@ -187,6 +189,10 @@ def write_snapshot(source: Source, token: str | None) -> dict:
         "manifest_path": str(manifest_path),
         "manifest_sha256": sha256(manifest_path),
         "splits": split_reports,
+        "quality": {
+            language: quality_statistics(split_texts)
+            for language, split_texts in sorted(language_split_texts.items())
+        },
     }
     report_path = source_root / "report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -215,4 +221,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
