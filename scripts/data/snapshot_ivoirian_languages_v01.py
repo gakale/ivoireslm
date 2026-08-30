@@ -61,6 +61,19 @@ SOURCES = {
 }
 
 
+def huggingface_token() -> str | None:
+    """Lit le jeton depuis l'environnement ou le stockage standard de Hugging Face."""
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if token:
+        return token
+    hf_home = Path(os.environ.get("HF_HOME", Path.home() / ".cache/huggingface"))
+    token_path = hf_home / "token"
+    if token_path.is_file():
+        token = token_path.read_text(encoding="utf-8").strip()
+        return token or None
+    return None
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -208,7 +221,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     source = SOURCES[args.source]
-    token = os.environ.get("HF_TOKEN")
+    token = huggingface_token()
     if source.gated and not token:
         raise RuntimeError(
             "Le corpus dioula est soumis à acceptation. Accepte ses conditions sur Hugging Face, "
