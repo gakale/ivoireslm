@@ -35,3 +35,4 @@ def test_bpe_v04_roundtrip(tmp_path):
 def test_bpe_v04_targets_corpus_v09_and_promotes_multilingual_pilot():
     assert MODULE.DEFAULT_CORPUS.name == "ivoireslm_corpus_v0.9.0"
     assert MODULE.DEFAULT_SEED_TOKENIZER.parent.name == "bpe_multilingual_pilot_v0.1"
+    assert MODULE.final_token_path(Path("/final"), "train") == "/final/train.uint16.bin"

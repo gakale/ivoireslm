@@ -111,6 +111,10 @@ def encode_split(
     }
 
 
+def final_token_path(output_root: Path, split: str) -> str:
+    return str(output_root / f"{split}.uint16.bin")
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus-root", type=Path, default=DEFAULT_CORPUS)
@@ -163,6 +167,9 @@ def main() -> None:
             tokenizer,
             args.corpus_root / f"splits/{split}.jsonl",
             build_root / f"{split}.uint16.bin",
+        )
+        split_reports[split]["token_path"] = final_token_path(
+            args.output_root, split
         )
         print(
             f"{split}: {split_reports[split]['tokens']:,} tokens, "
