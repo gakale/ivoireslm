@@ -102,7 +102,7 @@ for source in sorted(path for path in root.glob("*/*") if path.is_dir()):
             "provider": first.get("provider"),
             "extraction_status": first.get("extraction_status"),
             "text": "\n".join(row.get("text") or "" for row in ordered),
-        }, ensure_ascii=False))
+        }, ensure_ascii=True))
 '''
 
 

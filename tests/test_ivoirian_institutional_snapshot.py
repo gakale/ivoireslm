@@ -45,3 +45,7 @@ def test_clean_lines_removes_global_duplicates_and_boilerplate():
     assert "Une autre phrase utile." in second
     assert removed_first == 1
     assert removed_second == 1
+
+
+def test_container_transport_escapes_unicode_line_separators():
+    assert "ensure_ascii=True" in MODULE.CONTAINER_EXPORTER
