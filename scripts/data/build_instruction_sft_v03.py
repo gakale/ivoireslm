@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import argparse
 import json
+import itertools
 import re
 import sys
 from collections import Counter, defaultdict
@@ -134,7 +135,7 @@ def validate(rows_by_split: dict[str, list[dict]]) -> None:
                 raise RuntimeError(f"identifiant dupliqué : {row['example_id']}")
             identifiers.add(row["example_id"])
             prompts[split].add(normalized(row["prompt"]))
-    for left, right in (("train", "validation"), ("train", "test"), ("validation", "test")):
+    for left, right in itertools.combinations(rows_by_split, 2):
         overlap = prompts[left] & prompts[right]
         if overlap:
             raise RuntimeError(f"fuite de prompts {left}/{right} : {len(overlap)}")
@@ -152,13 +153,15 @@ def main() -> None:
     for path in (
         args.v02_root / "train.jsonl",
         args.v02_root / "validation.jsonl",
-        args.v02_root / "test.jsonl",
     ):
         if not path.is_file():
             raise FileNotFoundError(path)
 
     rows_by_split, translation_dropped = {}, {}
-    for split in ("train", "validation", "test"):
+    available_splits = ["train", "validation"]
+    if (args.v02_root / "test.jsonl").is_file():
+        available_splits.append("test")
+    for split in available_splits:
         translations, dropped = filtered_translations(args.v02_root, split)
         translation_dropped[split] = dropped
         rows_by_split[split] = (
@@ -189,7 +192,12 @@ def main() -> None:
 
     report = {
         "dataset_id": "instruction_sft_v0.3",
-        "status": "train_validation_and_sealed_test",
+        "status": (
+            "train_validation_and_sealed_test"
+            if "test" in rows_by_split
+            else "train_validation_only_test_remains_external_and_sealed"
+        ),
+        "sealed_test_packaged": "test" in rows_by_split,
         "changes_from_v0.2": {
             "math": "answer-only targets; exact answers remain programmatically verified",
             "wdi": "deterministically downsampled because v0.2 reached exact generation",
