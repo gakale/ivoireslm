@@ -181,6 +181,14 @@ def learning_rate(step: int, config: SFTConfig) -> float:
     )
 
 
+def weighted_validation_loss(validation: dict) -> float:
+    """Aligne la sélection du checkpoint sur le mélange réellement entraîné."""
+    return sum(
+        TASK_WEIGHTS[family] * validation["families"][family]["loss_nats"]
+        for family in TASK_WEIGHTS
+    )
+
+
 def checkpoint_payload(model, transformer_config, config, step, best_loss, optimizer=None, scaler=None, rng=None):
     payload = {
         "model_state_dict": model.state_dict(),
@@ -279,9 +287,10 @@ def main():
         last_raw_validation = evaluate_raw_language(
             model, raw_validation_tokens, device, autocast_context
         )
+        baseline_score = weighted_validation_loss(last_validation)
         print(
             "Référence avant SFT | "
-            f"supervisé {last_validation['loss_nats']:.4f} | "
+            f"score pondéré {baseline_score:.4f} | "
             f"langue générale {last_raw_validation['loss_nats']:.4f}",
             flush=True,
         )
@@ -324,9 +333,10 @@ def main():
             last_raw_validation = evaluate_raw_language(
                 model, raw_validation_tokens, device, autocast_context
             )
-            print(f"étape {step:4d}/{config.max_steps} | train {np.mean(losses):.4f} | validation {last_validation['loss_nats']:.4f} | ppl {last_validation['perplexity']:.3f} | langue {last_raw_validation['loss_nats']:.4f} | lr {lr:.2e} | {time.monotonic()-started:.1f}s", flush=True)
-            if last_validation["loss_nats"] < best_loss:
-                best_loss = last_validation["loss_nats"]
+            validation_score = weighted_validation_loss(last_validation)
+            print(f"étape {step:4d}/{config.max_steps} | train {np.mean(losses):.4f} | score {validation_score:.4f} | ppl {last_validation['perplexity']:.3f} | langue {last_raw_validation['loss_nats']:.4f} | lr {lr:.2e} | {time.monotonic()-started:.1f}s", flush=True)
+            if validation_score < best_loss:
+                best_loss = validation_score
                 torch.save(checkpoint_payload(model, transformer_config, config, step, best_loss), best_path)
         elif step % config.log_interval == 0:
             print(f"étape {step:4d}/{config.max_steps} | train {np.mean(losses):.4f} | modes {','.join(modes)} | lr {lr:.2e}", flush=True)
@@ -348,6 +358,7 @@ def main():
         "current_step": args.stop_step,
         "target_step": config.max_steps,
         "best_validation_loss": best_loss,
+        "selection_metric": "task_weighted_validation_loss",
         "last_supervised_validation": last_validation,
         "last_general_language_validation": last_raw_validation,
         "task_sampling_weights": TASK_WEIGHTS,
