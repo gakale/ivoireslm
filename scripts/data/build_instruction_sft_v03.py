@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import argparse
 import json
-import os
 import re
 import sys
 from collections import Counter, defaultdict
@@ -17,12 +17,9 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 from data.assistant_core_v03 import assistant_core_rows
 
 
-STORAGE_ROOT = Path(os.environ.get("IVOIRESLM_STORAGE_ROOT", Path.home() / "ivoireslm-storage"))
-V02_ROOT = STORAGE_ROOT / "derived/instruction_sft_v0.2"
-MATH_ROOT = STORAGE_ROOT / "derived/math_sft_v0.1"
-OUTPUT_ROOT = STORAGE_ROOT / "derived/instruction_sft_v0.3"
-MATH_TRAIN_PER_FAMILY = 4_000
-MATH_VALIDATION_PER_FAMILY = 150
+DEFAULT_STORAGE_ROOT = Path.home() / "ivoireslm-storage"
+DEFAULT_V02_ROOT = DEFAULT_STORAGE_ROOT / "derived/instruction_sft_v0.2"
+DEFAULT_OUTPUT_ROOT = DEFAULT_STORAGE_ROOT / "derived/instruction_sft_v0.3"
 WDI_LIMITS = {"train": 5_000, "validation": 500, "test": 500}
 
 
@@ -46,15 +43,18 @@ def stable_selection(rows: list[dict], limit: int) -> list[dict]:
     )[:limit]
 
 
-def exact_math_rows(split: str) -> list[dict]:
-    source = read_jsonl(MATH_ROOT / f"{split}.jsonl")
-    limit = MATH_TRAIN_PER_FAMILY if split == "train" else MATH_VALIDATION_PER_FAMILY
+def exact_math_rows(v02_root: Path, split: str) -> list[dict]:
+    source = [
+        row
+        for row in read_jsonl(v02_root / f"{split}.jsonl")
+        if row["task_family"] == "math_verified"
+    ]
     groups: dict[str, list[dict]] = defaultdict(list)
     for row in source:
-        groups[row["family"]].append(row)
+        groups[row["task_subfamily"]].append(row)
     output = []
     for family, rows in sorted(groups.items()):
-        for row in stable_selection(rows, limit):
+        for row in rows:
             if "Réponse :" not in row["target"] or not row["prompt"].endswith("Méthode :"):
                 raise RuntimeError(f"format mathématique inattendu : {row['example_id']}")
             answer = row["target"].rsplit("Réponse :", 1)[1].strip()
@@ -67,8 +67,7 @@ def exact_math_rows(split: str) -> list[dict]:
                     "prompt": f"{problem_prompt}\nRéponse exacte :",
                     "target": f" {answer}\n",
                     "license": "CC0-1.0",
-                    "source": "math_sft_v0.1_programmatically_verified",
-                    "verification": row["verification"],
+                    "source": "math_sft_v0.1_programmatically_verified_inherited_v02",
                     "split": split,
                 }
             )
@@ -79,10 +78,10 @@ def normalized(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().casefold())
 
 
-def filtered_translations(split: str) -> tuple[list[dict], int]:
+def filtered_translations(v02_root: Path, split: str) -> tuple[list[dict], int]:
     rows = [
         row
-        for row in read_jsonl(V02_ROOT / f"{split}.jsonl")
+        for row in read_jsonl(v02_root / f"{split}.jsonl")
         if row["task_family"] in {"translation_dyu_fr", "translation_fr_dyu"}
     ]
     targets_by_prompt: dict[tuple[str, str], set[str]] = defaultdict(set)
@@ -112,10 +111,10 @@ def filtered_translations(split: str) -> tuple[list[dict], int]:
     return output, len(rows) - len(output)
 
 
-def selected_wdi(split: str) -> list[dict]:
+def selected_wdi(v02_root: Path, split: str) -> list[dict]:
     rows = [
         row
-        for row in read_jsonl(V02_ROOT / f"{split}.jsonl")
+        for row in read_jsonl(v02_root / f"{split}.jsonl")
         if row["task_family"] == "grounded_wdi"
     ]
     return stable_selection(rows, min(WDI_LIMITS[split], len(rows)))
@@ -141,32 +140,42 @@ def validate(rows_by_split: dict[str, list[dict]]) -> None:
             raise RuntimeError(f"fuite de prompts {left}/{right} : {len(overlap)}")
 
 
+def arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--v02-root", type=Path, default=DEFAULT_V02_ROOT)
+    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = arguments()
     for path in (
-        V02_ROOT / "train.jsonl",
-        V02_ROOT / "validation.jsonl",
-        V02_ROOT / "test.jsonl",
-        MATH_ROOT / "train.jsonl",
-        MATH_ROOT / "validation.jsonl",
+        args.v02_root / "train.jsonl",
+        args.v02_root / "validation.jsonl",
+        args.v02_root / "test.jsonl",
     ):
         if not path.is_file():
             raise FileNotFoundError(path)
 
     rows_by_split, translation_dropped = {}, {}
     for split in ("train", "validation", "test"):
-        translations, dropped = filtered_translations(split)
+        translations, dropped = filtered_translations(args.v02_root, split)
         translation_dropped[split] = dropped
-        rows_by_split[split] = assistant_core_rows(split) + selected_wdi(split) + translations
-    rows_by_split["train"].extend(exact_math_rows("train"))
-    rows_by_split["validation"].extend(exact_math_rows("validation"))
+        rows_by_split[split] = (
+            assistant_core_rows(split)
+            + selected_wdi(args.v02_root, split)
+            + translations
+        )
+    rows_by_split["train"].extend(exact_math_rows(args.v02_root, "train"))
+    rows_by_split["validation"].extend(exact_math_rows(args.v02_root, "validation"))
     for rows in rows_by_split.values():
         rows.sort(key=lambda row: row["example_id"])
     validate(rows_by_split)
 
-    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    args.output_root.mkdir(parents=True, exist_ok=True)
     artifacts = {}
     for split, rows in rows_by_split.items():
-        path = OUTPUT_ROOT / f"{split}.jsonl"
+        path = args.output_root / f"{split}.jsonl"
         with path.open("w", encoding="utf-8") as stream:
             for row in rows:
                 stream.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
@@ -190,7 +199,7 @@ def main() -> None:
         "translation_rows_dropped": translation_dropped,
         "splits": artifacts,
     }
-    report_path = OUTPUT_ROOT / "report.json"
+    report_path = args.output_root / "report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
