@@ -244,7 +244,7 @@ def main():
     device = torch.device("cuda")
     amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     autocast_context = lambda: torch.autocast("cuda", dtype=amp_dtype)
-    scaler = torch.cuda.amp.GradScaler(enabled=amp_dtype == torch.float16)
+    scaler = torch.amp.GradScaler("cuda", enabled=amp_dtype == torch.float16)
     module = load_module(args.model_script)
     base = torch.load(args.base_checkpoint, map_location="cpu", weights_only=False)
     transformer_config = module.TrainingConfig(**base["config"])
@@ -263,9 +263,15 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate, betas=(0.9, 0.95), weight_decay=config.weight_decay)
     rng, start_step, best_loss = np.random.default_rng(config.seed), 0, math.inf
     if args.resume:
-        resume = torch.load(args.resume, map_location=device, weights_only=False)
+        # L'état du générateur CPU doit rester un ByteTensor CPU. Charger tout le
+        # checkpoint sur CUDA rend torch.set_rng_state incompatible.
+        resume = torch.load(args.resume, map_location="cpu", weights_only=False)
         model.load_state_dict(resume["model_state_dict"])
         optimizer.load_state_dict(resume["optimizer_state_dict"])
+        for state in optimizer.state.values():
+            for name, value in state.items():
+                if isinstance(value, torch.Tensor):
+                    state[name] = value.to(device)
         scaler.load_state_dict(resume["scaler_state_dict"])
         rng.bit_generator.state = resume["numpy_rng_state"]
         torch.set_rng_state(resume["torch_rng_state"])
