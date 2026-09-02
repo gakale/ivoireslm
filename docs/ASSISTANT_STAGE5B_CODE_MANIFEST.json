@@ -1,0 +1,26 @@
+{
+  "package_id": "ivoireslm_assistant_stage5b_targeted_recovery_code",
+  "version": "1.0.0",
+  "created_on": "2026-09-02",
+  "sealed_test_included": false,
+  "model_weights_included": false,
+  "files": {
+    "README.md": "7d16814f6350e69fb133d6c9bdcc6a77d90573c0192c81dd1128277f95d4a51f",
+    "requirements.txt": "57b81903c662bb493b1c52fa3da88260299d5f05ea7fea3358ffa12950e0bda9",
+    "docs/ASSISTANT_17M_STAGE5_DIRECT_ANSWER.md": "83bac26f55bf05e397575eecaf86b87248b5276eeb7cac0e8a9233e0c1ccaf33",
+    "docs/ASSISTANT_17M_STAGE5B_TARGETED_RECOVERY.md": "bb4e906413b2ad3be53f25eecddd510b19c59df3370706d02b9c27e09c82e7c1",
+    "src/data/assistant_curriculum_v1_4.py": "579282b171ce5f94c4cb020d930cdf97524dfd4895c58fbf4ba94f5f0108ed30",
+    "src/evaluation/assistant_direct_answer.py": "44a5aa09ca3aa8e1c42758d874ab0effe11a7a02688bb34da8710faf3c1dcf34",
+    "scripts/data/build_assistant_curriculum_v1_4.py": "19a937e9f11534b8ba0a95e0870ed5a235bd543a8b76d00878a58e783b20304a",
+    "scripts/data/build_assistant_curriculum_v1_4_1.py": "84e924625d55780bfeb74761f649963bd95ecef698bf9aeb647b8243d7e0f502",
+    "scripts/training/finetune_assistant_v1_4_stage5_17m.py": "c999978dcc1ac61dd1ff9ce86de498fb253cd1ae7443994aef6889d122199df5",
+    "scripts/training/finetune_assistant_v1_4_1_stage5b_17m.py": "aeab6e6fc3d4ab152efc598352734110de360f78fefc1d3a66acda024e5ce098",
+    "scripts/training/finetune_instruction_sft_v02_17m.py": "c05b8ac05cc8ff3cff49fd15189b326c77e04d5d7b906e90e18efeb7b3453409",
+    "scripts/training/finetune_instruction_sft_v03_17m.py": "31ac31754195049e7cdb3d19a7f712e9ef41c9c7d659fae89d9d7494dceb8ef0",
+    "scripts/training/train_transformer_ci_v03_17m.py": "8186b6105acac552936c445cd8e7002231dfa195b19c682dab3089dcc8d47c0c",
+    "scripts/training/train_transformer_ci_v04_17m.py": "fc9dbd29f8b5238ca6eee556d6a09484e6874ac5a28584de0a5deba9cf49ca67",
+    "scripts/colab/run_assistant_v1_4_1_stage5b.py": "1bdc6d33c7e4cb0b61b00dcb1a7240d904d51c3d9a3014a046de1c7a632fa88a",
+    "tests/test_assistant_curriculum_v1_4.py": "bb9bf432e98e1677a321c103666d2e7145e78a9d4f8600bb6c1fa2c6ee66b892",
+    "tests/test_assistant_curriculum_v1_4_1.py": "51653a7e00263514fe510a19ae9602e6725d3978031b09f8729acdd8a630ef48"
+  }
+}

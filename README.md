@@ -53,3 +53,9 @@ assez complètes ni assez justes. La décision à l'étape 125 est consignée da
 introduit un curriculum vérifié, une mesure anti-écho et une garde contre les
 réponses d'un seul mot. Il reste expérimental et ne justifie pas encore la
 publication des poids.
+
+Le diagnostic de l'étape 250 a ensuite révélé une suppression accidentelle des
+opérateurs pendant la déduplication des exercices. La nouvelle branche
+[stage 5B ciblée](docs/ASSISTANT_17M_STAGE5B_TARGETED_RECOVERY.md) corrige cette
+cause, rééquilibre conversation, savoirs et prudence, puis limite son premier
+pilote à 125 étapes.
