@@ -20,3 +20,18 @@ La correction des biais observés est détaillée dans
 [l'expérience corpus v0.8](docs/EXPERIENCE_CORPUS_V08.md) : collecte française
 élargie, plafonnement des gabarits répétitifs et nouveaux contrôles de
 composition.
+
+## État du modèle 17M
+
+Le pilote de diversification v1.0 a amélioré les losses de validation en
+mathématiques, code, anglais et cybersécurité défensive, sans dépasser la garde
+de rétention du corpus général. Les générations restent néanmoins trop
+répétitives et factuellement fragiles pour présenter ce checkpoint comme un
+assistant conversationnel fiable.
+
+- [Décision scientifique à l'étape 1 000](docs/DECISION_CPT_V10_STEP1000.md)
+- [Protocole de continuation de préentraînement](docs/CONTINUATION_PRETRAINING_V10_17M.md)
+- [Fiche de publication Hugging Face](releases/huggingface/microivoire-transformer-v1.0-17m-cpt-pilot/README.md)
+
+La publication des poids se fait comme **checkpoint expérimental de recherche**.
+Elle ne constitue pas une promesse de qualité d'assistant général.
