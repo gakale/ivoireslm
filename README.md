@@ -45,3 +45,11 @@ La correction expérimentale repart du checkpoint CPT v1.0 et est décrite dans
 [le stage 4 anti-collapse](docs/ASSISTANT_17M_STAGE4_ANTI_COLLAPSE.md). L'audit
 du corpus qui motive ce choix est conservé dans
 [l'audit de données du stage 4](docs/CORPUS_AUDIT_ASSISTANT_STAGE4.md).
+
+Le stage 4 a restauré une partie de la diversité sans produire des réponses
+assez complètes ni assez justes. La décision à l'étape 125 est consignée dans
+[son rapport de décision](docs/ASSISTANT_17M_STAGE4_STEP125_DECISION.md). Le
+[stage 5 « réponse directe »](docs/ASSISTANT_17M_STAGE5_DIRECT_ANSWER.md)
+introduit un curriculum vérifié, une mesure anti-écho et une garde contre les
+réponses d'un seul mot. Il reste expérimental et ne justifie pas encore la
+publication des poids.
