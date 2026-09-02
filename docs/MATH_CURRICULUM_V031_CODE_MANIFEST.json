@@ -1,0 +1,24 @@
+{
+  "artifact_id": "ivoireslm_math_curriculum_v031_stage1_code",
+  "created_date": "2026-09-02",
+  "status": "code_only_no_training_launched",
+  "files": {
+    "scripts/data/build_math_curriculum_v031.py": "48dd0d615f0fa084ab0d0a346703d1871d674787a74339563a0d844239c18753",
+    "scripts/training/finetune_math_curriculum_v031_17m.py": "908d97c383b5086ea4685eb998f4f245f6b65d16b45e4389ee29a1316809a6f4",
+    "scripts/training/finetune_instruction_sft_v02_17m.py": "c05b8ac05cc8ff3cff49fd15189b326c77e04d5d7b906e90e18efeb7b3453409",
+    "scripts/training/finetune_instruction_sft_v03_17m.py": "65c521b719eb0053149bcf8cf3a211bbdd2f346be1fe6a1ac56c18fd26130ab3",
+    "scripts/training/train_transformer_ci_v03_17m.py": "8186b6105acac552936c445cd8e7002231dfa195b19c682dab3089dcc8d47c0c",
+    "scripts/training/train_transformer_ci_v04_17m.py": "0ff51e654649ded97841b7c54a9c01eee04d681156e304dc17efaaca0b7d26cc",
+    "tests/test_math_curriculum_v031.py": "b46116fc4c1691a1e8b8ece945676d1b3b57e057d4622b248c8af9741da0e750",
+    "docs/MATH_CURRICULUM_V031_STAGE1.md": "37c1fc89339a09f637ad5a55ae47916c6fce911e688e19950155824536f312c5",
+    "requirements.txt": "57b81903c662bb493b1c52fa3da88260299d5f05ea7fea3358ffa12950e0bda9"
+  },
+  "dataset_expected": {
+    "train_examples": 448,
+    "validation_examples": 114,
+    "train_sha256": "559e542a647523ffee4b9c255e8772a7dbd4dbecf187c52bd4a560c0e762384c",
+    "validation_sha256": "db93e297d1e444f9b78029b209922462def008a03db3202d356e6e852fd915e2"
+  },
+  "sealed_test_created": false,
+  "sealed_test_opened": false
+}

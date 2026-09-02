@@ -1,0 +1,23 @@
+{
+  "package_id": "ivoireslm_math_curriculum_v032_tables_code",
+  "created_on": "2026-09-02",
+  "parent_experiment": "math_curriculum_v0.3.1_stage1_best_step500",
+  "files": {
+    "scripts/data/build_math_curriculum_v032.py": "897e9b28cf174d59d7af63e93da226a56ee0241fc8de45192d33b52f047566c4",
+    "scripts/training/finetune_math_curriculum_v032_17m.py": "c708a5db265eef31afa9932fa5b665fc02b066e7cb79f38723a29c8976eaeae5",
+    "tests/test_math_curriculum_v032.py": "5a805764872ce596f5ef6d73a6759192c9a23b27e9708b9e32cc0d0d67996084",
+    "docs/MATH_CURRICULUM_V032_TABLES.md": "5058a56f9e83bff2dfca605513c8d1c4a1bc9d9519cd02ea0d58d2ea39ef08fd",
+    "scripts/training/finetune_instruction_sft_v02_17m.py": "c05b8ac05cc8ff3cff49fd15189b326c77e04d5d7b906e90e18efeb7b3453409",
+    "scripts/training/finetune_instruction_sft_v03_17m.py": "65c521b719eb0053149bcf8cf3a211bbdd2f346be1fe6a1ac56c18fd26130ab3",
+    "scripts/training/train_transformer_ci_v03_17m.py": "8186b6105acac552936c445cd8e7002231dfa195b19c682dab3089dcc8d47c0c",
+    "scripts/training/train_transformer_ci_v04_17m.py": "0ff51e654649ded97841b7c54a9c01eee04d681156e304dc17efaaca0b7d26cc",
+    "requirements.txt": "57b81903c662bb493b1c52fa3da88260299d5f05ea7fea3358ffa12950e0bda9"
+  },
+  "dataset_expected_sha256": {
+    "train.jsonl": "de29e35ea49dbda717ebf5b8d32539437de34b13e780a49159317d6a24cd9f0f",
+    "validation.jsonl": "19b61ff7e3b899bf33ce4e5c1c3b75c932e28b8cb90f6524c4659624295d197a",
+    "diagnostic_generalization.jsonl": "96efa91c83278d2a17836d5fe0a66c2c6790759445095b1ca2eb2a83807c9a48",
+    "report.json": "83ccd3a8561500827de592ae48f774ee19e6f1cebaddf654ddaaffa8e92e250b"
+  },
+  "sealed_test_created": false
+}
