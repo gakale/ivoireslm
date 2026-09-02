@@ -59,3 +59,11 @@ opérateurs pendant la déduplication des exercices. La nouvelle branche
 [stage 5B ciblée](docs/ASSISTANT_17M_STAGE5B_TARGETED_RECOVERY.md) corrige cette
 cause, rééquilibre conversation, savoirs et prudence, puis limite son premier
 pilote à 125 étapes.
+
+Le résultat du pilote reste insuffisant pour une publication comme assistant.
+La [décision Stage 5B](docs/ASSISTANT_17M_STAGE5B_STEP125_DECISION.md) arrête le
+SFT et demande un retour au préentraînement. L'[audit du corpus
+v1.1](docs/CORPUS_AUDIT_V11_NATURAL_FRENCH.md) mesure un supplément composé à
+89,75 % de mathématiques et définit des seuils bloquants avant toute nouvelle
+continuation : français naturel majoritaire, conversations ivoiriennes
+vérifiées, licences traçables et test final toujours scellé.
