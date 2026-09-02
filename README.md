@@ -39,3 +39,9 @@ et le moteur hybride sont décrits dans
 [la qualification du micro-assistant 17M](docs/ASSISTANT_17M_QUALIFICATION_V1.md).
 Les poids ne seront publiés qu'après réussite des contrôles automatiques puis
 d'un test humain de 30 questions.
+
+Le test humain du stage 3 a révélé un collapse vers quelques réponses fixes.
+La correction expérimentale repart du checkpoint CPT v1.0 et est décrite dans
+[le stage 4 anti-collapse](docs/ASSISTANT_17M_STAGE4_ANTI_COLLAPSE.md). L'audit
+du corpus qui motive ce choix est conservé dans
+[l'audit de données du stage 4](docs/CORPUS_AUDIT_ASSISTANT_STAGE4.md).
