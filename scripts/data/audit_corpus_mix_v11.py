@@ -19,7 +19,10 @@ def compute_audit(report: dict, config: dict) -> dict:
         raise ValueError("le rapport ne contient aucun caractère")
 
     shares = {name: int(value) / total for name, value in sorted(domains.items())}
-    natural_french = int(domains.get("natural_french_open", 0))
+    natural_french = sum(
+        int(domains.get(name, 0))
+        for name in ("natural_french_open", "natural_french_conversation_open")
+    )
     natural_ivoirian = int(domains.get("natural_ivoirian_conversation_verified", 0))
     natural_language = sum(
         int(value) for name, value in domains.items() if name.startswith("natural_")

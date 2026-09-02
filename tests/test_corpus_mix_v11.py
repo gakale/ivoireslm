@@ -22,6 +22,7 @@ def test_target_weights_are_normalized_and_natural_language_dominates():
     assert (
         weights["ivoireslm_corpus_v0.9.0_base"]
         + weights["natural_french_open"]
+        + weights["natural_french_conversation_open"]
         + weights["natural_ivoirian_conversation_verified"]
     ) >= 0.9
 
@@ -51,10 +52,11 @@ def test_balanced_licensed_supplement_passes():
         "characters": 50_000_000,
         "domain_characters": {
             "natural_french_open": 30_000_000,
+            "natural_french_conversation_open": 2_000_000,
             "natural_ivoirian_conversation_verified": 6_000_000,
             "natural_english_open": 5_000_000,
             "ivoirian_languages_verified": 4_000_000,
-            "mathematics_reasoning": 3_000_000,
+            "mathematics_reasoning": 1_000_000,
             "code_agents": 1_000_000,
             "cybersecurity_defensive": 1_000_000,
         },

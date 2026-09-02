@@ -67,3 +67,8 @@ v1.1](docs/CORPUS_AUDIT_V11_NATURAL_FRENCH.md) mesure un supplément composé à
 89,75 % de mathématiques et définit des seuils bloquants avant toute nouvelle
 continuation : français naturel majoritaire, conversations ivoiriennes
 vérifiées, licences traçables et test final toujours scellé.
+
+La collecte correspondante est décrite dans
+[le protocole corpus v1.1](docs/CORPUS_V11_COLLECTION.md). Son lanceur Colab est
+reprenable et construit seulement un candidat audité : il ne déclenche aucun
+entraînement.

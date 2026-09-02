@@ -5,7 +5,8 @@
   "seed": 20260903,
   "target_weights": {
     "ivoireslm_corpus_v0.9.0_base": 0.65,
-    "natural_french_open": 0.2,
+    "natural_french_open": 0.15,
+    "natural_french_conversation_open": 0.05,
     "natural_english_open": 0.05,
     "natural_ivoirian_conversation_verified": 0.05,
     "ivoirian_languages_verified": 0.03,
