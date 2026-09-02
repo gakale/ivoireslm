@@ -33,5 +33,9 @@ assistant conversationnel fiable.
 - [Protocole de continuation de préentraînement](docs/CONTINUATION_PRETRAINING_V10_17M.md)
 - [Fiche de publication Hugging Face](releases/huggingface/microivoire-transformer-v1.0-17m-cpt-pilot/README.md)
 
-La publication des poids se fait comme **checkpoint expérimental de recherche**.
-Elle ne constitue pas une promesse de qualité d'assistant général.
+La publication des poids est désormais suspendue pendant la qualification du
+micro-assistant. Le protocole, les seuils et la séparation entre le modèle seul
+et le moteur hybride sont décrits dans
+[la qualification du micro-assistant 17M](docs/ASSISTANT_17M_QUALIFICATION_V1.md).
+Les poids ne seront publiés qu'après réussite des contrôles automatiques puis
+d'un test humain de 30 questions.

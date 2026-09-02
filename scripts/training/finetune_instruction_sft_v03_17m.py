@@ -234,7 +234,10 @@ def main():
     scaler = torch.amp.GradScaler("cuda", enabled=amp_dtype == torch.float16)
     module = load_module(args.model_script)
     base = torch.load(args.base_checkpoint, map_location="cpu", weights_only=False)
-    transformer_config = module.TrainingConfig(**base["config"])
+    raw_transformer_config = base.get("config") or base.get("parent_config")
+    if raw_transformer_config is None:
+        raise KeyError("configuration Transformer absente du checkpoint parent")
+    transformer_config = module.TrainingConfig(**raw_transformer_config)
     transformer_config.model_id = config.model_id
     model = module.MicroIvoireTransformer17M(transformer_config)
     model.load_state_dict(base["model_state_dict"])
