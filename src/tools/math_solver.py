@@ -107,8 +107,16 @@ def solve_math_problem(problem: str) -> MathSolution:
     """Analyse et résout un énoncé pris en charge, sans métadonnée externe."""
     if not isinstance(problem, str) or not problem.strip():
         raise UnsupportedMathProblem("l'énoncé doit être une chaîne non vide")
-    # Uniformiser les signes typographiques fréquemment utilisés en français.
+    # Uniformiser les signes typographiques et retirer les étiquettes souvent
+    # ajoutées par les interfaces ou les utilisateurs. Elles ne font pas partie
+    # de l'énoncé mathématique lui-même.
     problem = problem.replace("−", "-")
+    problem = re.sub(
+        r"^\s*(?:(?:question|probl[eè]me|demande|exercice)\s*:\s*)+",
+        "",
+        problem,
+        flags=re.IGNORECASE,
+    )
 
     match = _fullmatch(rf"Calculer\s+{INTEGER}\s*\+\s*{INTEGER}\s*\.", problem)
     if match:

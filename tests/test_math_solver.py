@@ -84,6 +84,8 @@ def test_solver_accepts_natural_school_quadratic_notation():
         ("Ça fait combien 2^5 ?", "32"),
         ("(10 - 3) * 4", "28"),
         ("Calculer 1 / 2.", "1/2"),
+        ("Question : Combien font 17 × 8 ?", "136"),
+        ("Problème : Calculer 12 + 7.", "19"),
     ),
 )
 def test_solver_accepts_safe_natural_arithmetic(prompt_text, answer):

@@ -41,6 +41,12 @@ def test_math_is_exact():
     assert result.verified
 
 
+def test_math_accepts_user_interface_label():
+    result = route_assistant("Question : Combien font 17 × 8 ?", FakeGenerator())
+    assert result.route == "deterministic_math_tool_v0.1"
+    assert "136" in result.response
+
+
 def test_political_and_economic_capitals_are_distinguished():
     political = route_assistant("Quelle est la capitale de la Côte d’Ivoire ?", FakeGenerator())
     economic = route_assistant("Quelle est la capitale économique ivoirienne ?", FakeGenerator())
