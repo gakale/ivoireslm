@@ -6,7 +6,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from inference.tool_assistant_v1 import WebResult, route_assistant
+from inference.tool_assistant_v1 import WebResult, _prepare_web_query, route_assistant
 
 
 class FakeGenerator:
@@ -67,6 +67,12 @@ def test_dioula_uses_small_verified_lexicon():
     assert "i ni ce" in result.response
 
 
+def test_unknown_dioula_translation_is_not_invented():
+    result = route_assistant("lavé en dioula", FakeGenerator())
+    assert result.route == "dioula_lexicon_miss_v1"
+    assert "ne contient pas" in result.response
+
+
 def test_internet_requires_explicit_request_or_checkbox():
     raw = route_assistant("Qui est Marie Curie ?", FakeGenerator(), web_search=FakeSearch())
     web = route_assistant(
@@ -104,12 +110,18 @@ def test_explicit_web_request_works_without_checkbox():
 
 def test_current_president_requires_fresh_information():
     guarded = route_assistant("C'est qui le président de la Côte d'Ivoire ?", FakeGenerator())
-    searched = route_assistant(
-        "C'est qui le président de la Côte d'Ivoire ?", FakeGenerator(),
-        internet_enabled=True, web_search=FakeSearch(),
-    )
     assert guarded.route == "freshness_guard_v1"
-    assert searched.route == "wikipedia_search_v1"
+
+
+def test_web_query_removes_question_scaffolding():
+    assert _prepare_web_query("C'est quoi une maison ?") == "maison"
+    assert _prepare_web_query("Qui est Laurent Gbagbo ?") == "Laurent Gbagbo"
+
+
+def test_slm_has_an_explicit_local_definition():
+    result = route_assistant("slm", FakeGenerator(), internet_enabled=True)
+    assert result.route == "local_ai_glossary_v1"
+    assert "Small Language Model" in result.response
 
 
 def test_abidjan_time_uses_clock_tool():

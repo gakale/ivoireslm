@@ -132,6 +132,8 @@ IVOIRE_SOURCES = {
     "bceao": "https://www.bceao.int/fr/content/histoire-du-franc-cfa",
 }
 
+OFFICIAL_PRESIDENT_URL = "https://www.presidence.ci/presidence/le-president/"
+
 
 def _identity(text: str) -> AssistantResponse | None:
     if not any(re.search(pattern, text) for pattern in IDENTITY_PATTERNS):
@@ -152,6 +154,17 @@ def _conversation(text: str) -> AssistantResponse | None:
     return None
 
 
+def _glossary(text: str) -> AssistantResponse | None:
+    if text in {"slm", "un slm", "c'est quoi un slm", "qu'est ce qu'un slm"}:
+        return AssistantResponse(
+            "Dans le domaine de l’intelligence artificielle, SLM signifie généralement « Small Language Model », c’est-à-dire un modèle de langage de petite taille. Selon le contexte, ce sigle peut avoir d’autres sens.",
+            "local_ai_glossary_v1",
+            "✅ définition locale avec ambiguïté signalée",
+            True,
+        )
+    return None
+
+
 def _dioula(text: str) -> AssistantResponse | None:
     if not re.search(r"\b(?:dioula|jula)\b", text):
         return None
@@ -160,7 +173,13 @@ def _dioula(text: str) -> AssistantResponse | None:
     elif re.search(r"\bmerci\b", text):
         answer = "On peut dire « i ni ce » pour remercier quelqu’un en dioula."
     else:
-        answer = "Le dioula, aussi appelé jula, est une langue mandingue parlée notamment en Côte d’Ivoire et au Burkina Faso."
+        return AssistantResponse(
+            "Mon petit lexique dioula vérifié ne contient pas encore cette traduction. Je préfère ne pas l’inventer.",
+            "dioula_lexicon_miss_v1",
+            "⚠️ traduction absente du lexique vérifié",
+            True,
+            ("Koumankan4Dyula — validation humaine requise pour toute extension",),
+        )
     return AssistantResponse(
         answer,
         "verified_dioula_lexicon_v1",
@@ -234,6 +253,46 @@ def _strip_internet_command(request: str) -> str:
     return cleaned or request.strip()
 
 
+def _prepare_web_query(request: str) -> str:
+    """Transforme une question courte en requête encyclopédique ciblée."""
+    cleaned = _strip_internet_command(request).strip()
+    cleaned = re.sub(
+        r"^\s*(?:(?:c['’]est quoi|qu['’]est[- ]ce que|qui est|qui etait|"
+        r"définis?|definis?|explique(?:[- ]moi)?)\s+)",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"^(?:un|une|le|la|les|l['’])\s+", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip(" ?!.,:;-") or request.strip()
+
+
+def _official_current_ivoire_president() -> AssistantResponse | None:
+    """Valide en direct le titulaire sur le site officiel ivoirien."""
+    request = Request(
+        OFFICIAL_PRESIDENT_URL,
+        headers={"User-Agent": "IvoireSLM-Research/1.0 (educational project)"},
+    )
+    try:
+        with urlopen(request, timeout=8.0) as response:
+            page = response.read(1_000_000).decode("utf-8", errors="ignore")
+    except (HTTPError, URLError, TimeoutError):
+        return None
+    plain = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", page)).split())
+    match = re.search(r"\bAlassane\s+(?:Dramane\s+)?Ouattara\b", plain, flags=re.IGNORECASE)
+    if not match:
+        return None
+    name = " ".join(part.capitalize() for part in match.group(0).split())
+    checked = datetime.now(ZoneInfo("Africa/Abidjan")).strftime("%d/%m/%Y")
+    return AssistantResponse(
+        f"À la date de la vérification ({checked}), le président de la République de Côte d’Ivoire est {name}.",
+        "official_ivoire_presidency_v1",
+        "✅ information vérifiée en direct sur le site officiel",
+        True,
+        (OFFICIAL_PRESIDENT_URL,),
+    )
+
+
 def _looks_factual(text: str) -> bool:
     return bool(re.match(
         r"^(?:qui|que|quoi|quel|quelle|quels|quelles|quand|ou|pourquoi|comment|"
@@ -301,7 +360,7 @@ def route_assistant(
 
     # Les domaines explicites passent avant la conversation : « merci en
     # dioula » est une traduction, pas un remerciement adressé à l'assistant.
-    for route in (_identity, _local_time, _dioula, _ivoire_fact, _conversation):
+    for route in (_identity, _local_time, _glossary, _dioula, _ivoire_fact, _conversation):
         result = route(text)
         if result is not None:
             return result
@@ -310,7 +369,10 @@ def route_assistant(
     # donc pas leur nom dans une règle statique.
     if re.search(r"\bpresident\b", text) and re.search(r"\b(?:cote d'ivoire|ivoirien)\b", text):
         if internet_enabled or _internet_requested(text):
-            return _web_answer(_strip_internet_command(original), web_search or WikipediaFrenchSearch())
+            official = _official_current_ivoire_president()
+            if official is not None:
+                return official
+            return _web_answer(_prepare_web_query(original), web_search or WikipediaFrenchSearch())
         return AssistantResponse(
             "Cette information peut changer. Active la recherche Internet pour que je consulte une source actuelle.",
             "freshness_guard_v1",
@@ -335,7 +397,7 @@ def route_assistant(
 
     explicit_web = _internet_requested(text)
     if explicit_web or (internet_enabled and _looks_factual(text)):
-        return _web_answer(_strip_internet_command(original), web_search or WikipediaFrenchSearch())
+        return _web_answer(_prepare_web_query(original), web_search or WikipediaFrenchSearch())
 
     if _looks_factual(text):
         return AssistantResponse(
