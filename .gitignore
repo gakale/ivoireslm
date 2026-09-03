@@ -9,6 +9,7 @@ logs/*
 reports/data/*
 reports/training/*
 reports/evaluation/*
+dist/*.tar.gz
 
 # Conserver la structure des répertoires dans Git
 !data/raw/originals/.gitkeep

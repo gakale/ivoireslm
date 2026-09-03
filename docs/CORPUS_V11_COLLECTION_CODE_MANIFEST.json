@@ -1,0 +1,18 @@
+{
+  "artifact_id": "ivoireslm_corpus_v11_collection_code",
+  "created_at": "2026-09-02",
+  "training_performed": false,
+  "test_created": false,
+  "files": {
+    "configs/corpus_mix_v11_candidate.json": "cfe5e8ee214cdbd2c1821cda245e37a1f2d4ccbb4486ed09b54087aaa834b8a6",
+    "docs/CORPUS_AUDIT_V11_NATURAL_FRENCH.md": "4928c17fa94954e9b28bc93dae017ddd88a7608342b2146881c2fe1dea1c6513",
+    "docs/CORPUS_V11_COLLECTION.md": "02d3e85e03f3d3f7f863e8e821396282a34fd89dbf420195d40414135f220726",
+    "scripts/colab/run_corpus_v11_collection.py": "17ab5fe0b24357de0318a688f9196d8cc7dc92c16c7a877367eff3aa4aa40158",
+    "scripts/data/audit_corpus_mix_v11.py": "39c9f93522f5c90c66a8780fc4dcdb91e827dd351abc67f2369b61bf6a680bf8",
+    "scripts/data/build_natural_french_supplement_v11.py": "bd0157483bf2f4836b554c0cde49ee0594ea2b064d198a2a5a21e62fcaa2bce5",
+    "scripts/data/snapshot_openassistant_fr_v01.py": "8803ea8053e897e05236424f5d38f211b226b2c23d7c8a8b136ae0cb49ea7b34",
+    "scripts/data/snapshot_wikipedia_fr_natural_v03.py": "ab92349f63b1d7f3f9e583cc114b8ba7a3529b07797a768535152dd94a19aa19",
+    "tests/test_corpus_mix_v11.py": "7500f493e70b11760a5ba638647c9f5ad022a4674acc28fa329ed2cdd5c82505",
+    "tests/test_natural_french_collection_v11.py": "49860e32337a373ac820dbb2f19b546cdf14b7d851c57da4baf869690cc18425"
+  }
+}

@@ -100,7 +100,7 @@ def route_request(request: str, language_generator: Callable[[str], str]) -> Hyb
                 detail=str(exc),
             )
     return HybridResponse(
-        route="microivoire_transformer_v0.2_5m",
+        route=getattr(language_generator, "model_id", "microivoire_transformer_v0.2_5m"),
         response=language_generator(request),
         verified=False,
     )

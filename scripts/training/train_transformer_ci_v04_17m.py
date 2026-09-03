@@ -13,7 +13,11 @@ sys.path.insert(0, str(SCRIPT_DIRECTORY))
 from train_transformer_ci_v03_17m import (
     MicroIvoireTransformer17M,
     TrainingConfig,
+    evaluate_complete,
+    generate,
+    load_tokens,
     main,
+    random_batch,
 )
 
 

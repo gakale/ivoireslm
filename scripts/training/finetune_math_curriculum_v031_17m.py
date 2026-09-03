@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SFT v0.3 du Transformer 17M, sélectionné par générations de validation."""
+"""Pilote du curriculum mathématique progressif v0.3.1 pour le modèle 17M."""
 from __future__ import annotations
 
 import argparse
@@ -27,158 +27,147 @@ from finetune_instruction_sft_v02_17m import (
     supervised_batch,
     validate_dataset,
 )
+from finetune_instruction_sft_v03_17m import greedy_generate
 
 
 @dataclass
-class SFTConfig:
-    model_id: str = "microivoire_transformer_v0.4_17m_sft_v0.3"
-    max_steps: int = 4_000
+class CurriculumConfig:
+    model_id: str = "microivoire_transformer_v0.4_17m_math_v0.3.1_stage1"
+    max_steps: int = 1_000
     batch_size: int = 16
     gradient_accumulation: int = 2
-    learning_rate: float = 2e-5
-    minimum_learning_rate: float = 2e-6
+    learning_rate: float = 1e-5
+    minimum_learning_rate: float = 1e-6
     warmup_steps: int = 100
     weight_decay: float = 0.05
     gradient_clip: float = 1.0
-    raw_language_probability: float = 0.20
+    raw_language_probability: float = 0.35
     evaluation_interval: int = 250
     checkpoint_interval: int = 250
     log_interval: int = 50
-    generation_examples_per_family: int = 20
-    seed: int = 20260901
+    generation_examples_per_family: int = 100
+    maximum_general_language_loss_increase: float = 0.02
+    seed: int = 20260902
 
 
 TASK_WEIGHTS = {
-    "assistant_core": 0.10,
-    "grounded_wdi": 0.05,
-    "math_exact": 0.30,
-    "translation_dyu_fr": 0.275,
-    "translation_fr_dyu": 0.275,
+    "addition_easy": 0.70,
+    "multiplication_table": 0.30,
 }
-EXACT_FAMILIES = {"grounded_wdi", "math_exact"}
+PASS_THRESHOLDS = {
+    "addition_easy": 0.25,
+    "multiplication_table": 0.15,
+}
 
 
 def normalized(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().casefold())
 
 
-def learning_rate(step: int, config: SFTConfig) -> float:
+def learning_rate(step: int, config: CurriculumConfig) -> float:
     if step < config.warmup_steps:
         return config.learning_rate * (step + 1) / config.warmup_steps
-    progress = min(1.0, (step - config.warmup_steps) / (config.max_steps - config.warmup_steps))
+    progress = min(
+        1.0,
+        (step - config.warmup_steps) / (config.max_steps - config.warmup_steps),
+    )
     return config.minimum_learning_rate + 0.5 * (1 + math.cos(math.pi * progress)) * (
         config.learning_rate - config.minimum_learning_rate
     )
 
 
-def fixed_generation_rows(rows: list[dict], limit: int) -> list[dict]:
-    groups: dict[str, list[dict]] = defaultdict(list)
-    for row in rows:
-        groups[row["task_family"]].append(row)
-    selected = []
-    for family, family_rows in sorted(groups.items()):
-        ordered = sorted(
-            family_rows,
-            key=lambda row: hashlib.sha256(
-                f"generation-v03:{row['example_id']}".encode()
-            ).digest(),
-        )
-        selected.extend(ordered[:limit])
-    return selected
+def fixed_rows(rows: list[dict], family: str, limit: int) -> list[dict]:
+    selected = [row for row in rows if row["task_family"] == family]
+    selected.sort(
+        key=lambda row: hashlib.sha256(
+            f"math-v031-generation:{row['example_id']}".encode("utf-8")
+        ).digest()
+    )
+    return selected[:limit]
 
 
 @torch.inference_mode()
-def greedy_generate(model, tokenizer, prompt: str, eos_id: int, device, autocast_context, limit: int) -> str:
-    prompt_ids = tokenizer.encode(prompt, add_special_tokens=False).ids
-    generated: list[int] = []
-    model.eval()
-    for _ in range(limit):
-        context = (prompt_ids + generated)[-model.config.block_size :]
-        inputs = torch.tensor([context], dtype=torch.long, device=device)
-        with autocast_context():
-            logits, _ = model(inputs)
-        next_id = int(torch.argmax(logits[0, -1]).item())
-        if next_id == eos_id:
-            break
-        generated.append(next_id)
-    return tokenizer.decode(generated, skip_special_tokens=True)
-
-
 def evaluate_generation(
     model,
-    rows,
+    rows: list[dict],
     tokenizer,
-    eos_id,
+    eos_id: int,
     device,
     autocast_context,
-    examples_per_family,
-):
-    selected = fixed_generation_rows(rows, examples_per_family)
-    totals = defaultdict(lambda: {"examples": 0, "exact": 0, "similarity_sum": 0.0})
-    samples = []
-    for row in selected:
-        expected_tokens = len(tokenizer.encode(row["target"], add_special_tokens=False).ids)
-        prediction = greedy_generate(
-            model,
-            tokenizer,
-            row["prompt"],
-            eos_id,
-            device,
-            autocast_context,
-            min(128, expected_tokens + 20),
-        )
-        expected_norm, prediction_norm = normalized(row["target"]), normalized(prediction)
-        exact = prediction_norm == expected_norm
-        similarity = SequenceMatcher(None, prediction_norm, expected_norm).ratio()
-        family = row["task_family"]
-        totals[family]["examples"] += 1
-        totals[family]["exact"] += int(exact)
-        totals[family]["similarity_sum"] += similarity
-        if len([sample for sample in samples if sample["task_family"] == family]) < 2:
-            samples.append(
-                {
-                    "task_family": family,
-                    "example_id": row["example_id"],
-                    "expected": row["target"].strip(),
-                    "prediction": prediction.strip(),
-                    "exact": exact,
-                    "similarity": similarity,
-                }
+    limit: int,
+) -> dict:
+    families, samples = {}, []
+    for family in TASK_WEIGHTS:
+        selected = fixed_rows(rows, family, limit)
+        exact, similarity_sum = 0, 0.0
+        for row in selected:
+            target_length = len(
+                tokenizer.encode(row["target"], add_special_tokens=False).ids
             )
-    families, quality = {}, 0.0
-    for family, values in sorted(totals.items()):
-        exact_rate = values["exact"] / values["examples"]
-        mean_similarity = values["similarity_sum"] / values["examples"]
-        family_quality = exact_rate if family in EXACT_FAMILIES else mean_similarity
+            prediction = greedy_generate(
+                model,
+                tokenizer,
+                row["prompt"],
+                eos_id,
+                device,
+                autocast_context,
+                min(32, target_length + 8),
+            )
+            expected_norm = normalized(row["target"])
+            prediction_norm = normalized(prediction)
+            is_exact = prediction_norm == expected_norm
+            similarity = SequenceMatcher(
+                None, prediction_norm, expected_norm
+            ).ratio()
+            exact += int(is_exact)
+            similarity_sum += similarity
+            if len([item for item in samples if item["task_family"] == family]) < 3:
+                samples.append(
+                    {
+                        "task_family": family,
+                        "example_id": row["example_id"],
+                        "expected": row["target"].strip(),
+                        "prediction": prediction.strip(),
+                        "exact": is_exact,
+                    }
+                )
         families[family] = {
-            "examples": values["examples"],
-            "exact_rate": exact_rate,
-            "mean_similarity": mean_similarity,
-            "selection_quality": family_quality,
+            "examples": len(selected),
+            "correct": exact,
+            "exact_rate": exact / len(selected),
+            "mean_similarity": similarity_sum / len(selected),
         }
-        quality += TASK_WEIGHTS[family] * family_quality
-    return {"quality_score": quality, "families": families, "samples": samples}
+    score = sum(
+        TASK_WEIGHTS[family] * values["exact_rate"]
+        for family, values in families.items()
+    )
+    return {"quality_score": score, "families": families, "samples": samples}
 
 
 def checkpoint_payload(
     model,
     transformer_config,
     config,
-    step,
-    best_quality,
-    baseline,
+    step: int,
+    best_quality: float,
+    baseline: dict,
+    dataset_provenance: dict,
+    base_checkpoint_sha256: str,
     optimizer=None,
     scaler=None,
     rng=None,
-):
+) -> dict:
     payload = {
         "model_state_dict": model.state_dict(),
         "config": asdict(transformer_config),
-        "sft_config": asdict(config),
+        "curriculum_config": asdict(config),
         "step": step,
         "best_generation_quality": best_quality,
         "baseline_validation": baseline,
-        "selection_metric": "weighted_greedy_generation_quality",
+        "dataset_provenance": dataset_provenance,
+        "base_checkpoint_sha256": base_checkpoint_sha256,
+        "selection_metric": "weighted_exact_rate_with_language_guard",
+        "sealed_test_opened": False,
     }
     if optimizer is not None:
         payload.update(
@@ -193,7 +182,7 @@ def checkpoint_payload(
     return payload
 
 
-def arguments():
+def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset-dir", type=Path, required=True)
     parser.add_argument("--data-dir", type=Path, required=True)
@@ -205,17 +194,27 @@ def arguments():
     return parser.parse_args()
 
 
-def main():
-    args, config = arguments(), SFTConfig()
+def main() -> None:
+    args, config = arguments(), CurriculumConfig()
     if not 1 <= args.stop_step <= config.max_steps:
         raise ValueError("stop-step invalide")
     if not torch.cuda.is_available():
         raise RuntimeError("GPU CUDA absent : active un T4")
     report = json.loads((args.dataset_dir / "report.json").read_text(encoding="utf-8"))
+    if report["dataset_id"] != "math_curriculum_v0.3.1_stage1":
+        raise RuntimeError("dataset inattendu")
+    if report["status"] != "stage1_train_validation_only_test_not_created":
+        raise RuntimeError("statut du dataset inattendu")
     train_rows = validate_dataset(args.dataset_dir / "train.jsonl", report, "train")
     validation_rows = validate_dataset(
         args.dataset_dir / "validation.jsonl", report, "validation"
     )
+    dataset_provenance = {
+        "dataset_id": report["dataset_id"],
+        "report_sha256": sha256(args.dataset_dir / "report.json"),
+        "train_sha256": report["splits"]["train"]["sha256"],
+        "validation_sha256": report["splits"]["validation"]["sha256"],
+    }
     groups = defaultdict(list)
     for row in train_rows:
         groups[row["task_family"]].append(row)
@@ -234,10 +233,8 @@ def main():
     scaler = torch.amp.GradScaler("cuda", enabled=amp_dtype == torch.float16)
     module = load_module(args.model_script)
     base = torch.load(args.base_checkpoint, map_location="cpu", weights_only=False)
-    raw_transformer_config = base.get("config") or base.get("parent_config")
-    if raw_transformer_config is None:
-        raise KeyError("configuration Transformer absente du checkpoint parent")
-    transformer_config = module.TrainingConfig(**raw_transformer_config)
+    base_checkpoint_sha256 = sha256(args.base_checkpoint)
+    transformer_config = module.TrainingConfig(**base["config"])
     transformer_config.model_id = config.model_id
     model = module.MicroIvoireTransformer17M(transformer_config)
     model.load_state_dict(base["model_state_dict"])
@@ -260,6 +257,12 @@ def main():
     start_step, best_quality, baseline = 0, -math.inf, None
     if args.resume:
         resume = torch.load(args.resume, map_location="cpu", weights_only=False)
+        if resume.get("sealed_test_opened") is not False:
+            raise RuntimeError("checkpoint de reprise non conforme")
+        if resume.get("dataset_provenance") != dataset_provenance:
+            raise RuntimeError("dataset différent de celui du checkpoint de reprise")
+        if resume.get("base_checkpoint_sha256") != base_checkpoint_sha256:
+            raise RuntimeError("checkpoint parent différent de la reprise")
         model.load_state_dict(resume["model_state_dict"])
         optimizer.load_state_dict(resume["optimizer_state_dict"])
         for state in optimizer.state.values():
@@ -273,14 +276,31 @@ def main():
         start_step = int(resume["step"])
         best_quality = float(resume["best_generation_quality"])
         baseline = resume["baseline_validation"]
-        print(f"Reprise SFT v0.3 exacte depuis l’étape {start_step:,} ✅")
+        print(f"Reprise exacte depuis l'étape {start_step:,} ✅", flush=True)
+    if args.stop_step <= start_step:
+        raise ValueError("stop-step doit être supérieur à l'étape reprise")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    best_path, latest_path = args.output_dir / "best.pt", args.output_dir / "latest.pt"
+    best_path = args.output_dir / "best.pt"
+    latest_path = args.output_dir / "latest.pt"
+    progress_path = args.output_dir / "progress.json"
+    if not args.resume and any(
+        path.exists() for path in (best_path, latest_path, progress_path)
+    ):
+        raise FileExistsError(
+            "Une expérience existe déjà dans output-dir ; utilise --resume ou un nouveau dossier"
+        )
     families, probabilities = zip(*TASK_WEIGHTS.items())
     started = time.monotonic()
-    print(f"Base : étape {base['step']:,} | paramètres : {sum(p.numel() for p in model.parameters()):,}")
-    print(f"SFT v0.3 train/validation : {len(train_rows):,}/{len(validation_rows):,}")
+    print(
+        f"Base : étape {base['step']:,} | paramètres : "
+        f"{sum(parameter.numel() for parameter in model.parameters()):,}",
+        flush=True,
+    )
+    print(
+        f"Curriculum stage 1 train/validation : {len(train_rows):,}/{len(validation_rows):,}",
+        flush=True,
+    )
 
     if start_step == 0:
         baseline_teacher = evaluate(
@@ -306,17 +326,25 @@ def main():
         best_quality = baseline_generation["quality_score"]
         torch.save(
             checkpoint_payload(
-                model, transformer_config, config, 0, best_quality, baseline
+                model,
+                transformer_config,
+                config,
+                0,
+                best_quality,
+                baseline,
+                dataset_provenance,
+                base_checkpoint_sha256,
             ),
             best_path,
         )
         print(
-            f"Référence avant SFT | génération {best_quality:.4f} | "
+            f"Référence | exact pondéré {best_quality:.3%} | "
             f"langue {baseline_raw['loss_nats']:.4f}",
             flush=True,
         )
 
     last_teacher = last_raw = last_generation = None
+    best_step = int(torch.load(best_path, map_location="cpu", weights_only=False)["step"])
     for step in range(start_step + 1, args.stop_step + 1):
         model.train()
         lr = learning_rate(step - 1, config)
@@ -327,9 +355,13 @@ def main():
         for _ in range(config.gradient_accumulation):
             if rng.random() < config.raw_language_probability:
                 x, y = raw_batch(
-                    raw_tokens, config.batch_size, transformer_config.block_size, rng, device
+                    raw_tokens,
+                    config.batch_size,
+                    transformer_config.block_size,
+                    rng,
+                    device,
                 )
-                mode = "raw"
+                mode = "raw_language"
             else:
                 mode = str(rng.choice(families, p=probabilities))
                 selected = groups[mode]
@@ -345,22 +377,30 @@ def main():
                 )
             with autocast_context():
                 _, loss = model(x, y)
-                scaled = loss / config.gradient_accumulation
+                scaled_loss = loss / config.gradient_accumulation
             if not torch.isfinite(loss):
-                raise FloatingPointError(f"loss non finie à l’étape {step}")
-            scaler.scale(scaled).backward()
+                raise FloatingPointError(f"loss non finie à l'étape {step}")
+            scaler.scale(scaled_loss).backward()
             losses.append(float(loss.detach()))
             modes.append(mode)
         scaler.unscale_(optimizer)
-        norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradient_clip)
-        if not torch.isfinite(norm):
-            raise FloatingPointError(f"gradient non fini à l’étape {step}")
+        gradient_norm = torch.nn.utils.clip_grad_norm_(
+            model.parameters(), config.gradient_clip
+        )
+        if not torch.isfinite(gradient_norm):
+            raise FloatingPointError(f"gradient non fini à l'étape {step}")
         scaler.step(optimizer)
         scaler.update()
 
         if step % config.evaluation_interval == 0:
             last_teacher = evaluate(
-                model, validation_rows, tokenizer, pad_id, eos_id, device, autocast_context
+                model,
+                validation_rows,
+                tokenizer,
+                pad_id,
+                eos_id,
+                device,
+                autocast_context,
             )
             last_raw = evaluate_raw_language(
                 model, raw_validation_tokens, device, autocast_context
@@ -375,17 +415,35 @@ def main():
                 config.generation_examples_per_family,
             )
             quality = last_generation["quality_score"]
+            language_limit = baseline["general_language"]["loss_nats"] * (
+                1 + config.maximum_general_language_loss_increase
+            )
+            language_guard_passed = last_raw["loss_nats"] <= language_limit
             print(
                 f"étape {step:4d}/{config.max_steps} | train {np.mean(losses):.4f} | "
-                f"génération {quality:.4f} | langue {last_raw['loss_nats']:.4f} | "
-                f"lr {lr:.2e} | {time.monotonic()-started:.1f}s",
+                f"exact {quality:.3%} | langue {last_raw['loss_nats']:.4f} | "
+                f"garde {'OK' if language_guard_passed else 'NON'} | lr {lr:.2e} | "
+                f"{time.monotonic()-started:.1f}s",
                 flush=True,
             )
-            if quality > best_quality:
-                best_quality = quality
+            for family, values in last_generation["families"].items():
+                print(
+                    f"  {family}: {values['correct']}/{values['examples']} "
+                    f"({values['exact_rate']:.1%})",
+                    flush=True,
+                )
+            if language_guard_passed and quality > best_quality:
+                best_quality, best_step = quality, step
                 torch.save(
                     checkpoint_payload(
-                        model, transformer_config, config, step, best_quality, baseline
+                        model,
+                        transformer_config,
+                        config,
+                        step,
+                        best_quality,
+                        baseline,
+                        dataset_provenance,
+                        base_checkpoint_sha256,
                     ),
                     best_path,
                 )
@@ -404,6 +462,8 @@ def main():
                     step,
                     best_quality,
                     baseline,
+                    dataset_provenance,
+                    base_checkpoint_sha256,
                     optimizer,
                     scaler,
                     rng,
@@ -415,7 +475,9 @@ def main():
         last_teacher = evaluate(
             model, validation_rows, tokenizer, pad_id, eos_id, device, autocast_context
         )
-        last_raw = evaluate_raw_language(model, raw_validation_tokens, device, autocast_context)
+        last_raw = evaluate_raw_language(
+            model, raw_validation_tokens, device, autocast_context
+        )
         last_generation = evaluate_generation(
             model,
             validation_rows,
@@ -425,29 +487,49 @@ def main():
             autocast_context,
             config.generation_examples_per_family,
         )
-
+    pass_by_family = {
+        family: last_generation["families"][family]["exact_rate"] >= threshold
+        for family, threshold in PASS_THRESHOLDS.items()
+    }
+    language_limit = baseline["general_language"]["loss_nats"] * (
+        1 + config.maximum_general_language_loss_increase
+    )
+    language_guard_passed = last_raw["loss_nats"] <= language_limit
+    pilot_passed = all(pass_by_family.values()) and language_guard_passed
     progress = {
+        "experiment_id": "math_curriculum_v0.3.1_stage1",
         "model_id": config.model_id,
         "base_checkpoint_step": int(base["step"]),
-        "base_checkpoint_sha256": sha256(args.base_checkpoint),
+        "base_checkpoint_sha256": base_checkpoint_sha256,
+        "dataset_provenance": dataset_provenance,
         "current_step": args.stop_step,
         "target_step": config.max_steps,
+        "best_step": best_step,
         "best_generation_quality": best_quality,
         "baseline_validation": baseline,
         "last_teacher_forced_validation": last_teacher,
         "last_general_language_validation": last_raw,
         "last_generation_validation": last_generation,
+        "pass_thresholds": PASS_THRESHOLDS,
+        "pass_by_family": pass_by_family,
+        "language_guard_passed": language_guard_passed,
+        "pilot_passed": pilot_passed,
         "task_sampling_weights": TASK_WEIGHTS,
         "raw_language_probability": config.raw_language_probability,
         "latest_checkpoint_sha256": sha256(latest_path),
         "sealed_test_opened": False,
         "elapsed_seconds_this_run": time.monotonic() - started,
     }
-    (args.output_dir / "progress.json").write_text(
+    progress_path.write_text(
         json.dumps(progress, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(json.dumps(progress, ensure_ascii=False, indent=2))
-    print("Palier SFT v0.3 terminé ; tests finaux toujours scellés ✅")
+    print(
+        "Palier stage 1 terminé ; "
+        f"décision automatique : {'PASS' if pilot_passed else 'CONTINUER_OU_REVOIR'} ✅",
+        flush=True,
+    )
+    print("Test scellé toujours fermé ✅", flush=True)
 
 
 if __name__ == "__main__":

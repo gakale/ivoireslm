@@ -1,0 +1,29 @@
+{
+  "mixture_id": "ivoireslm_pretraining_mix_v1.0.0_pilot",
+  "status": "pilot_completed_step_1000",
+  "sampling_unit": "characters_before_tokenization",
+  "seed": 20260902,
+  "weights": {
+    "ivoireslm_corpus_v0.9.0_base": 0.6,
+    "wikipedia_fr": 0.15,
+    "wikipedia_en": 0.05,
+    "mathematics_reasoning": 0.1,
+    "code_agents": 0.05,
+    "cybersecurity_defensive": 0.05
+  },
+  "rules": {
+    "with_replacement": true,
+    "preserve_group_split": true,
+    "never_sample_evaluation_data": true,
+    "test_remains_sealed": true,
+    "sharealike_export_layer_separate": true,
+    "maximum_consecutive_documents_same_source": 2
+  },
+  "gates_before_training": {
+    "minimum_french_share": 0.45,
+    "maximum_english_share": 0.3,
+    "maximum_any_supplement_domain_share": 0.15,
+    "secret_findings_after_redaction": 0,
+    "train_validation_group_leaks": 0
+  }
+}
