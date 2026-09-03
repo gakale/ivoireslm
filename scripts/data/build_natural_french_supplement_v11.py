@@ -120,7 +120,38 @@ def consented_ivoirian_dialogues(path: Path | None) -> tuple[list[dict], Counter
     return accepted, rejected
 
 
-def build(wikipedia: Path, oasst: Path, output: Path, ivoirian: Path | None = None) -> dict:
+def standardized_documents(snapshot: Path | None, expected_domains: set[str]) -> list[dict]:
+    if snapshot is None:
+        return []
+    path = snapshot / "documents.jsonl"
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    documents = []
+    for row in read_jsonl(path):
+        required = {
+            "document_id", "group_id", "source_id", "source_url", "language",
+            "domain", "content_type", "license", "rights_tier", "split", "text",
+        }
+        missing = sorted(required - row.keys())
+        if missing:
+            raise RuntimeError(f"document standard incomplet ({row.get('document_id')}): {missing}")
+        if row["domain"] not in expected_domains:
+            raise RuntimeError(f"domaine inattendu : {row['domain']}")
+        if row["split"] not in {"train", "validation"}:
+            raise RuntimeError(f"split interdit dans le supplément : {row['split']}")
+        documents.append(row)
+    return documents
+
+
+def build(
+    wikipedia: Path,
+    oasst: Path,
+    output: Path,
+    ivoirian: Path | None = None,
+    ivoirian_open_data: Path | None = None,
+    ivoirian_languages: Path | None = None,
+    dataset_id: str = DATASET_ID,
+) -> dict:
     if output.exists():
         raise FileExistsError(f"refus d'écraser {output}")
     building = output.with_name(output.name + ".building")
@@ -130,7 +161,16 @@ def build(wikipedia: Path, oasst: Path, output: Path, ivoirian: Path | None = No
         if not required.is_file():
             raise FileNotFoundError(required)
     consented, rejected_consent = consented_ivoirian_dialogues(ivoirian)
-    documents = wikipedia_documents(wikipedia) + oasst_dialogues(oasst) + consented
+    grounded = standardized_documents(
+        ivoirian_open_data, {"natural_ivoirian_grounded_verified"}
+    )
+    languages = standardized_documents(
+        ivoirian_languages, {"ivoirian_languages_verified"}
+    )
+    documents = (
+        wikipedia_documents(wikipedia) + oasst_dialogues(oasst) + consented
+        + grounded + languages
+    )
     documents.sort(key=lambda row: (row["split"], row["source_id"], row["document_id"]))
 
     unique, seen, duplicate_count = [], {}, 0
@@ -170,7 +210,7 @@ def build(wikipedia: Path, oasst: Path, output: Path, ivoirian: Path | None = No
             domains[row["domain"]] += row["characters"]
             sources[row["source_id"]] += row["characters"]
     report = {
-        "dataset_id": DATASET_ID,
+        "dataset_id": dataset_id,
         "status": "candidate_train_validation_only_test_not_created",
         "documents": len(unique), "characters": sum(row["characters"] for row in unique),
         "domain_characters": dict(sorted(domains.items())),
@@ -190,9 +230,20 @@ def main() -> None:
     parser.add_argument("--wikipedia-dir", type=Path, required=True)
     parser.add_argument("--oasst-dir", type=Path, required=True)
     parser.add_argument("--ivoirian-conversations", type=Path)
+    parser.add_argument("--ivoirian-open-data-dir", type=Path)
+    parser.add_argument("--ivoirian-languages-dir", type=Path)
+    parser.add_argument("--dataset-id", default=DATASET_ID)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
-    report = build(args.wikipedia_dir, args.oasst_dir, args.output_dir, args.ivoirian_conversations)
+    report = build(
+        args.wikipedia_dir,
+        args.oasst_dir,
+        args.output_dir,
+        args.ivoirian_conversations,
+        args.ivoirian_open_data_dir,
+        args.ivoirian_languages_dir,
+        args.dataset_id,
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     print("\nCandidat de français naturel v1.1 construit ✅")
     print("Aucun entraînement lancé ; aucun split test créé ✅")

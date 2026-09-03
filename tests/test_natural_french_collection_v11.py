@@ -74,3 +74,28 @@ def test_builder_pairs_dialogue_and_requires_consent(tmp_path):
     combined = (tmp_path / "output/train.jsonl").read_text() + (tmp_path / "output/validation.jsonl").read_text()
     assert "Utilisateur : Comment vas-tu ?" in combined
     assert "Privé" not in combined
+
+
+def test_builder_accepts_standardized_ivoirian_open_data(tmp_path):
+    wiki, oasst, grounded = tmp_path / "wiki", tmp_path / "oasst", tmp_path / "grounded"
+    write_jsonl(wiki / "pages.jsonl", [{
+        "page_id": 2, "url": "https://example.test/wiki/2", "title": "Économie",
+        "attribution": "Auteurs", "split": "train", "text": "Texte français naturel. " * 10,
+    }])
+    write_jsonl(oasst / "train.jsonl", [])
+    write_jsonl(oasst / "validation.jsonl", [])
+    write_jsonl(grounded / "documents.jsonl", [{
+        "document_id": "ci:1", "group_id": "ci:dataset:1", "source_id": "data-gouv-ci",
+        "source_url": "https://data.gouv.ci/datasets/exemple", "title": "Exemple",
+        "language": "fr-CI", "domain": "natural_ivoirian_grounded_verified",
+        "content_type": "open_government_dataset_description_and_rows",
+        "license": "Licence Ouverte / Open Licence", "rights_tier": "A_REDISTRIBUTABLE",
+        "split": "validation", "text": "Information publique ivoirienne vérifiée et attribuée.",
+    }])
+    report = BUILD.build(
+        wiki, oasst, tmp_path / "output", ivoirian_open_data=grounded,
+        dataset_id="candidate-v1.1.1",
+    )
+    assert report["dataset_id"] == "candidate-v1.1.1"
+    assert report["domain_characters"]["natural_ivoirian_grounded_verified"] > 0
+    assert report["group_leaks"] == 0

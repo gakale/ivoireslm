@@ -1,6 +1,6 @@
 {
   "mixture_id": "ivoireslm_pretraining_mix_v1.1.0_candidate",
-  "status": "blocked_pending_natural_french_and_ivoirian_conversation",
+  "status": "blocked_pending_ivoirian_grounded_corpus",
   "sampling_unit": "characters_before_tokenization",
   "seed": 20260903,
   "target_weights": {
@@ -8,7 +8,8 @@
     "natural_french_open": 0.15,
     "natural_french_conversation_open": 0.05,
     "natural_english_open": 0.05,
-    "natural_ivoirian_conversation_verified": 0.05,
+    "natural_ivoirian_grounded_verified": 0.04,
+    "natural_ivoirian_conversation_verified": 0.01,
     "ivoirian_languages_verified": 0.03,
     "mathematics_reasoning": 0.01,
     "code_agents": 0.005,
@@ -21,7 +22,8 @@
     "maximum_code_agents_share": 0.05,
     "maximum_cybersecurity_share": 0.05,
     "minimum_natural_french_characters": 30000000,
-    "minimum_ivoirian_conversation_characters": 5000000
+    "minimum_ivoirian_grounded_characters": 5000000,
+    "minimum_ivoirian_conversation_characters_for_sft": 250000
   },
   "rules": {
     "never_sample_evaluation_data": true,

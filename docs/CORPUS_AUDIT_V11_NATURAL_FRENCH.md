@@ -37,14 +37,17 @@ mais il ne doit pas être concaténé directement au corpus principal.
 ## Recette candidate v1.1
 
 La recette est décrite dans `configs/corpus_mix_v11_candidate.json`. Elle conserve
-65 % du corpus ivoirien v0.9, vise 20 % de nouveau français naturel, 5 % de
-conversation ivoirienne vérifiée, 3 % de langues ivoiriennes, 5 % d'anglais et
-seulement 2 % de STEM/code/cybersécurité au total.
+65 % du corpus ivoirien v0.9, vise 20 % de nouveau français naturel, 4 % de
+données ivoiriennes officielles ancrées, 1 % de conversation ivoirienne
+consentie, 3 % de langues ivoiriennes, 5 % d'anglais et seulement 2 % de
+STEM/code/cybersécurité au total.
 
-Avant entraînement, le supplément doit contenir au minimum 30 millions de caractères
-de français naturel et 5 millions de caractères de conversation ivoirienne vérifiée.
-Les données présentes aujourd'hui ne satisfont pas ces seuils. Le script
-`scripts/data/audit_corpus_mix_v11.py` rend ce blocage automatique et reproductible.
+Avant continuation du préentraînement, le supplément doit contenir au minimum
+30 millions de caractères de français naturel et 5 millions de caractères de
+données ivoiriennes officielles ancrées. La supervision conversationnelle a sa
+propre garde : au moins 250 000 caractères de conversations ivoiriennes
+consenties. Le script `scripts/data/audit_corpus_mix_v11.py` rend ces deux
+décisions distinctes, automatiques et reproductibles.
 
 ## Ordre de travail
 

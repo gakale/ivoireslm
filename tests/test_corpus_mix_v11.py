@@ -23,6 +23,7 @@ def test_target_weights_are_normalized_and_natural_language_dominates():
         weights["ivoireslm_corpus_v0.9.0_base"]
         + weights["natural_french_open"]
         + weights["natural_french_conversation_open"]
+        + weights["natural_ivoirian_grounded_verified"]
         + weights["natural_ivoirian_conversation_verified"]
     ) >= 0.9
 
@@ -43,7 +44,7 @@ def test_current_math_heavy_supplement_is_rejected():
     assert audit["training_authorized"] is False
     assert audit["domain_shares"]["mathematics_reasoning"] > 0.89
     assert "maximum_mathematics_share" in audit["failed_checks"]
-    assert "minimum_ivoirian_conversation_characters" in audit["failed_checks"]
+    assert "minimum_ivoirian_grounded_characters" in audit["failed_checks"]
 
 
 def test_balanced_licensed_supplement_passes():
@@ -53,9 +54,10 @@ def test_balanced_licensed_supplement_passes():
         "domain_characters": {
             "natural_french_open": 30_000_000,
             "natural_french_conversation_open": 2_000_000,
-            "natural_ivoirian_conversation_verified": 6_000_000,
+            "natural_ivoirian_grounded_verified": 6_000_000,
+            "natural_ivoirian_conversation_verified": 500_000,
             "natural_english_open": 5_000_000,
-            "ivoirian_languages_verified": 4_000_000,
+            "ivoirian_languages_verified": 3_500_000,
             "mathematics_reasoning": 1_000_000,
             "code_agents": 1_000_000,
             "cybersecurity_defensive": 1_000_000,
@@ -63,5 +65,6 @@ def test_balanced_licensed_supplement_passes():
     }
     audit = MODULE.compute_audit(report, CONFIG)
     assert audit["training_authorized"] is True
+    assert audit["assistant_sft_authorized"] is True
     assert audit["failed_checks"] == []
     assert audit["test_opened"] is False

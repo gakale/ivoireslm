@@ -21,9 +21,15 @@ def compute_audit(report: dict, config: dict) -> dict:
     shares = {name: int(value) / total for name, value in sorted(domains.items())}
     natural_french = sum(
         int(domains.get(name, 0))
-        for name in ("natural_french_open", "natural_french_conversation_open")
+        for name in (
+            "natural_french_open",
+            "natural_french_conversation_open",
+            "natural_ivoirian_grounded_verified",
+            "natural_ivoirian_conversation_verified",
+        )
     )
-    natural_ivoirian = int(domains.get("natural_ivoirian_conversation_verified", 0))
+    grounded_ivoirian = int(domains.get("natural_ivoirian_grounded_verified", 0))
+    conversational_ivoirian = int(domains.get("natural_ivoirian_conversation_verified", 0))
     natural_language = sum(
         int(value) for name, value in domains.items() if name.startswith("natural_")
     )
@@ -41,10 +47,15 @@ def compute_audit(report: dict, config: dict) -> dict:
         <= gates["maximum_cybersecurity_share"],
         "minimum_natural_french_characters": natural_french
         >= gates["minimum_natural_french_characters"],
-        "minimum_ivoirian_conversation_characters": natural_ivoirian
-        >= gates["minimum_ivoirian_conversation_characters"],
+        "minimum_ivoirian_grounded_characters": grounded_ivoirian
+        >= gates["minimum_ivoirian_grounded_characters"],
     }
     failed = [name for name, passed in checks.items() if not passed]
+    sft_checks = {
+        "minimum_ivoirian_conversation_characters_for_sft": conversational_ivoirian
+        >= gates["minimum_ivoirian_conversation_characters_for_sft"],
+    }
+    failed_sft = [name for name, passed in sft_checks.items() if not passed]
     return {
         "dataset_id": report.get("dataset_id"),
         "mixture_id": config["mixture_id"],
@@ -53,7 +64,11 @@ def compute_audit(report: dict, config: dict) -> dict:
         "domain_shares": shares,
         "natural_language_share": natural_language / total,
         "checks": checks,
+        "assistant_sft_checks": sft_checks,
         "failed_checks": failed,
+        "failed_sft_checks": failed_sft,
+        "cpt_training_authorized": not failed,
+        "assistant_sft_authorized": not failed and not failed_sft,
         "training_authorized": not failed,
         "test_opened": False,
     }

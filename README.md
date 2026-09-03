@@ -72,3 +72,9 @@ La collecte correspondante est décrite dans
 [le protocole corpus v1.1](docs/CORPUS_V11_COLLECTION.md). Son lanceur Colab est
 reprenable et construit seulement un candidat audité : il ne déclenche aucun
 entraînement.
+
+L'[extension ivoirienne v1.1.1](docs/CORPUS_V111_IVOIRIAN_EXTENSION.md)
+ajoute une collecte officielle de `data.gouv.ci`, sépare la garde CPT de la
+garde SFT conversationnelle et conserve le test final fermé. Le lanceur
+`scripts/colab/run_corpus_v111_ivoirian_collection.py` collecte, construit et
+audite le candidat sans entraîner le modèle.

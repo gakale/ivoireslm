@@ -1,0 +1,17 @@
+{
+  "package_id": "ivoireslm_corpus_v1.1.1_ivoirian_extension_code",
+  "created_at": "2026-09-03",
+  "test_split_created": false,
+  "training_started": false,
+  "files": {
+    "configs/corpus_mix_v11_candidate.json": "73bd5f56e92ffd742c6e23602dca2ef9c25d0f6c50cf752d1b8086e5fb62b7df",
+    "scripts/data/snapshot_datagouvci_open_v011.py": "7edabf5fbef7aa9136ffad151f14e7cf45d441b019f86fed1c84e048303a92f1",
+    "scripts/data/build_natural_french_supplement_v11.py": "d24b097d924b16e2b2ae7b523b85d18fd04886a34040c391f5c28bcf5656d943",
+    "scripts/data/audit_corpus_mix_v11.py": "3ed0f533c5f0cd3f022d5831a1a4480ae5127685b027f5f9c440a481424cbfd3",
+    "scripts/colab/run_corpus_v111_ivoirian_collection.py": "6b905cf122303729b277850aee5a3d35ad0f43ef30aff6e00ae6a3a9934acae0",
+    "tests/test_ivoirian_open_collection_v111.py": "fde764a8bcfa240e5fcecf28d9d0e3e561ce1b810d12d353759c59d7d4ebd028",
+    "tests/test_corpus_mix_v11.py": "4ec5e1e724c7fd66c438d0021215a5f475bc6d51491ca0943387a7c28f304ee6",
+    "tests/test_natural_french_collection_v11.py": "9f821a4a7873a8d3086010aa1b07e863602bc625ed6e4e2df995dc5ddb06b1ab",
+    "docs/CORPUS_V111_IVOIRIAN_EXTENSION.md": "51532d25591e87927c3acb27e7d6fe30454a9c6cff1198dcc5e3680de05187a4"
+  }
+}
