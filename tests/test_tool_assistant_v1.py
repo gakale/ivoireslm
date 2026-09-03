@@ -29,9 +29,22 @@ def test_identity_is_controlled():
 
 
 def test_identity_accepts_natural_variant():
-    for question in ("Tu es qui ?", "Tu est qui ?", "Tu t'appel comment ?"):
+    for question in ("Tu es qui ?", "Tu est qui ?", "Tu t'appel comment ?", "Tu es quoi exactement ?"):
         result = route_assistant(question, FakeGenerator())
         assert result.route == "identity_card_v1"
+
+
+def test_identity_explains_model_parameters_and_version():
+    cases = {
+        "Quel modèle utilises-tu ?": "17M",
+        "Combien de paramètres possèdes-tu ?": "17 millions",
+        "Quelle est ta version ?": "1.0.7",
+        "Qui t'a créé ?": "projet expérimental IvoireSLM",
+    }
+    for question, expected in cases.items():
+        result = route_assistant(question, FakeGenerator())
+        assert result.route == "identity_card_v1"
+        assert expected in result.response
 
 
 def test_math_is_exact():
@@ -102,11 +115,38 @@ def test_unknown_definition_is_not_sent_to_unreliable_model():
     assert searched.route == "wikipedia_search_v1"
 
 
+def test_hyphenated_definition_uses_web_when_enabled():
+    result = route_assistant(
+        "Qu’est-ce que l’intelligence artificielle ?",
+        FakeGenerator(),
+        internet_enabled=True,
+        web_search=FakeSearch(),
+    )
+    assert result.route == "wikipedia_search_v1"
+
+
+def test_unavailable_live_data_never_reaches_small_model():
+    result = route_assistant(
+        "Donne-moi le cours actuel du bitcoin.",
+        FakeGenerator(),
+        internet_enabled=True,
+        web_search=FakeSearch(),
+    )
+    assert result.route == "unsupported_live_data_guard_v1"
+    assert "temps réel" in result.response
+
+
 def test_conversation_variants_are_controlled():
     capabilities = route_assistant("Tu sais faire quoi ?", FakeGenerator())
     clarification = route_assistant("Tu dis quoi, j'ai pas compris", FakeGenerator())
     assert capabilities.route == "conversation_rules_v1"
     assert clarification.route == "conversation_rules_v1"
+
+
+def test_capabilities_are_controlled():
+    for question in ("Quelles sont tes capacités ?", "Que peux-tu faire ?"):
+        result = route_assistant(question, FakeGenerator())
+        assert result.route == "conversation_rules_v1"
 
 
 def test_explicit_web_request_works_without_checkbox():

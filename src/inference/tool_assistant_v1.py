@@ -99,9 +99,15 @@ IDENTITY_PATTERNS = (
     r"\b(?:tu t'appel(?:les|le)? comment|c'est quoi ton nom)\b",
     r"\bqui es[- ]tu\b",
     r"\b(?:tu (?:es|est) qui|t'es qui)\b",
+    r"\b(?:tu (?:es|est) quoi|t'es quoi)(?: exactement)?\b",
     r"\bpresente[- ]toi\b",
     r"\bes[- ]tu (?:une personne|un etre humain|humain)\b",
     r"\bquel est ton role\b",
+    r"\bquel modele utilises[- ]tu\b",
+    r"\b(?:combien de )?parametres (?:as[- ]tu|possedes[- ]tu)\b",
+    r"\bes[- ]tu ivoireslm\b",
+    r"\bqui t'a cree\b",
+    r"\bquelle est ta version\b",
 )
 
 CONVERSATION_RULES = (
@@ -121,6 +127,10 @@ CONVERSATION_RULES = (
         "Je peux effectuer certains calculs, donner des informations ivoiriennes vérifiées, répondre sur mon identité, utiliser un petit lexique dioula et rechercher des informations sur Internet si tu l’autorises.",
     ),
     (
+        r"\b(?:quelles? sont )?(?:tes|vos) capacites\b|\bque peux[- ]tu faire\b",
+        "Je peux effectuer certains calculs, donner des informations ivoiriennes vérifiées, répondre sur mon identité, utiliser un petit lexique dioula et rechercher des informations encyclopédiques sur Internet si tu l’autorises.",
+    ),
+    (
         r"\b(?:tu dis quoi|j'ai pas compris|je n'ai pas compris|repete|répète)\b",
         "Dis-moi quelle réponse ou quelle partie tu n’as pas comprise, et je vais la reformuler plus simplement.",
     ),
@@ -138,7 +148,15 @@ OFFICIAL_PRESIDENT_URL = "https://www.presidence.ci/presidence/le-president/"
 def _identity(text: str) -> AssistantResponse | None:
     if not any(re.search(pattern, text) for pattern in IDENTITY_PATTERNS):
         return None
-    if re.search(r"\b(?:personne|etre humain|humain)\b", text):
+    if "version" in text:
+        answer = "J’utilise l’assistant outillé IvoireSLM version 1.0.7 autour du modèle expérimental 17M."
+    elif "parametre" in text:
+        answer = "Le modèle expérimental IvoireSLM utilisé ici possède environ 17 millions de paramètres."
+    elif re.search(r"\bmodele\b", text):
+        answer = "J’utilise le modèle expérimental IvoireSLM 17M, complété par des outils déterministes et des sources vérifiables."
+    elif re.search(r"\bcree\b", text):
+        answer = "J’ai été développé dans le cadre du projet expérimental IvoireSLM."
+    elif re.search(r"\b(?:personne|etre humain|humain)\b", text):
         answer = "Non. Je suis IvoireSLM, un petit modèle de langage expérimental, pas une personne."
     elif "role" in text:
         answer = "Je suis IvoireSLM. Mon rôle est d’aider à répondre aux questions avec mes outils et mes connaissances limitées."
@@ -213,6 +231,9 @@ def _ivoire_fact(text: str) -> AssistantResponse | None:
         (("devise nationale", "union discipline travail"), "La devise nationale est « Union – Discipline – Travail ».", "oif"),
         (("hymne",), "L’hymne national de la Côte d’Ivoire s’appelle L’Abidjanaise.", "oif"),
         (("drapeau",), "Le drapeau ivoirien comporte trois bandes verticales orange, blanche et verte.", "oif"),
+        (("indicatif telephonique",), "L’indicatif téléphonique international de la Côte d’Ivoire est +225.", "diplomatie"),
+        (("domaine internet", "extension internet"), "Le domaine Internet national de la Côte d’Ivoire est .ci.", "diplomatie"),
+        (("habitants",), "Les habitants de la Côte d’Ivoire sont appelés les Ivoiriens et les Ivoiriennes.", "diplomatie"),
         (("ouest", "region d'afrique", "partie de l'afrique"), "La Côte d’Ivoire se situe en Afrique de l’Ouest.", "diplomatie"),
     )
     for keywords, answer, source in facts:
@@ -296,10 +317,29 @@ def _official_current_ivoire_president() -> AssistantResponse | None:
 def _looks_factual(text: str) -> bool:
     return bool(re.match(
         r"^(?:qui|que|quoi|quel|quelle|quels|quelles|quand|ou|pourquoi|comment|"
-        r"c'est quoi|c'est qui|qu'est ce|definis|explique|tu connais|"
+        r"c'est quoi|c'est qui|qu'est[- ]ce|definis|explique|tu connais|"
         r"il est (?:quelle|quel|qu'elle) heure)\b",
         text,
     ))
+
+
+def _live_data_guard(text: str) -> AssistantResponse | None:
+    """Bloque les demandes temps réel que le connecteur Wikipédia ne peut vérifier."""
+    live_request = bool(re.search(
+        r"\b(?:cours|prix|valeur|meteo|temps|score|resultat|actualites|nouvelles)\b.*"
+        r"\b(?:actuel|actuelle|actuellement|aujourd'hui|maintenant|demain|dernier|derniere|recent|recentes)\b|"
+        r"\b(?:actuel|actuelle|actuellement|aujourd'hui|maintenant|demain|dernier|derniere|recent|recentes)\b.*"
+        r"\b(?:cours|prix|valeur|meteo|temps|score|resultat|actualites|nouvelles)\b",
+        text,
+    ))
+    if not live_request:
+        return None
+    return AssistantResponse(
+        "Cette demande exige une donnée en temps réel. Mon accès Internet actuel consulte Wikipédia, qui ne garantit pas les prix, la météo, les scores ou les actualités en direct. Je préfère ne pas inventer de valeur.",
+        "unsupported_live_data_guard_v1",
+        "⚠️ source temps réel non disponible",
+        True,
+    )
 
 
 def _trim_repetition(response: str) -> tuple[str, bool]:
@@ -364,6 +404,10 @@ def route_assistant(
         result = route(text)
         if result is not None:
             return result
+
+    live_guard = _live_data_guard(text)
+    if live_guard is not None:
+        return live_guard
 
     # Les titulaires de fonctions publiques peuvent changer. On ne conserve
     # donc pas leur nom dans une règle statique.
