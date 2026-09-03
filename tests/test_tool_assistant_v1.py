@@ -55,6 +55,12 @@ def test_political_and_economic_capitals_are_distinguished():
     assert political.sources and economic.sources
 
 
+def test_capital_typo_is_tolerated():
+    result = route_assistant("Qu'elle est la capital de la Côte d'Ivoire ?", FakeGenerator())
+    assert result.route == "verified_ivoire_kb_v1"
+    assert "Yamoussoukro" in result.response
+
+
 def test_dioula_uses_small_verified_lexicon():
     result = route_assistant("Comment dit-on merci en dioula ?", FakeGenerator())
     assert result.route == "verified_dioula_lexicon_v1"
@@ -66,10 +72,27 @@ def test_internet_requires_explicit_request_or_checkbox():
     web = route_assistant(
         "Qui est Marie Curie ?", FakeGenerator(), internet_enabled=True, web_search=FakeSearch()
     )
-    assert raw.route == "fake_17m"
+    assert raw.route == "factual_freshness_guard_v1"
     assert web.route == "wikipedia_search_v1"
     assert web.sources == ("https://fr.wikipedia.org/wiki/Test",)
     assert not web.verified
+
+
+def test_unknown_definition_is_not_sent_to_unreliable_model():
+    guarded = route_assistant("C'est quoi une maison ?", FakeGenerator())
+    searched = route_assistant(
+        "C'est quoi une maison ?", FakeGenerator(), internet_enabled=True,
+        web_search=FakeSearch(),
+    )
+    assert guarded.route == "factual_freshness_guard_v1"
+    assert searched.route == "wikipedia_search_v1"
+
+
+def test_conversation_variants_are_controlled():
+    capabilities = route_assistant("Tu sais faire quoi ?", FakeGenerator())
+    clarification = route_assistant("Tu dis quoi, j'ai pas compris", FakeGenerator())
+    assert capabilities.route == "conversation_rules_v1"
+    assert clarification.route == "conversation_rules_v1"
 
 
 def test_explicit_web_request_works_without_checkbox():

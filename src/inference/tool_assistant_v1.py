@@ -116,6 +116,14 @@ CONVERSATION_RULES = (
         r"\b(?:tu fais quoi|que fais[- ]tu) (?:aujourd'hui|maintenant)\b",
         "Je suis disponible pour répondre à tes questions et utiliser mes outils.",
     ),
+    (
+        r"\b(?:tu sais|sais[- ]tu|tu peux|peux[- ]tu|tu sais faire) (?:faire )?quoi\b",
+        "Je peux effectuer certains calculs, donner des informations ivoiriennes vérifiées, répondre sur mon identité, utiliser un petit lexique dioula et rechercher des informations sur Internet si tu l’autorises.",
+    ),
+    (
+        r"\b(?:tu dis quoi|j'ai pas compris|je n'ai pas compris|repete|répète)\b",
+        "Dis-moi quelle réponse ou quelle partie tu n’as pas comprise, et je vais la reformuler plus simplement.",
+    ),
 )
 
 IVOIRE_SOURCES = {
@@ -166,13 +174,13 @@ def _ivoire_fact(text: str) -> AssistantResponse | None:
     mentions_country = bool(re.search(r"\b(?:cote d'ivoire|ivoirien|ivoirienne|le pays)\b", text))
     if not mentions_country:
         return None
-    if "capitale economique" in text:
+    if re.search(r"\bcapital(?:e)? economique\b", text):
         return AssistantResponse(
             "Abidjan est la capitale économique et la principale ville de Côte d’Ivoire.",
             "verified_ivoire_kb_v1", "✅ fait institutionnel vérifié", True,
             (IVOIRE_SOURCES["diplomatie"],),
         )
-    if "capitale" in text:
+    if re.search(r"\bcapital(?:e)?\b", text):
         return AssistantResponse(
             "La capitale politique et administrative de la Côte d’Ivoire est Yamoussoukro. Abidjan est sa capitale économique.",
             "verified_ivoire_kb_v1", "✅ fait institutionnel vérifié", True,
@@ -328,6 +336,14 @@ def route_assistant(
     explicit_web = _internet_requested(text)
     if explicit_web or (internet_enabled and _looks_factual(text)):
         return _web_answer(_strip_internet_command(original), web_search or WikipediaFrenchSearch())
+
+    if _looks_factual(text):
+        return AssistantResponse(
+            "Cette question demande une information que mes outils locaux ne contiennent pas. Active la recherche Internet pour obtenir une réponse accompagnée de sources.",
+            "factual_freshness_guard_v1",
+            "⚠️ recherche Internet désactivée",
+            True,
+        )
 
     response = language_generator(original).strip()
     if not response:
