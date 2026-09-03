@@ -105,6 +105,14 @@ def test_natural_arithmetic_rejects_code_and_unsafe_operations(prompt_text):
         solve_math_problem(prompt_text)
 
 
+def test_solver_verifies_numeric_equalities():
+    correct = solve_math_problem("Calcul vérifié : 17 × 8 = 136")
+    incorrect = solve_math_problem("Vérifie le calcul : 17 × 8 = 120")
+    assert correct.family == "arithmetic_verification"
+    assert correct.answer == "égalité correcte"
+    assert "136" in incorrect.answer
+
+
 def test_hybrid_router_extracts_problem_from_full_ivoireslm_prompt():
     record = generate_benchmark_exercise("ivorian_market_change", 12)
     routed = route_math_request(record["prompt"])

@@ -47,6 +47,14 @@ def test_math_accepts_user_interface_label():
     assert "136" in result.response
 
 
+def test_math_verifies_a_claimed_result():
+    correct = route_assistant("Calcul vérifié : 17 × 8 = 136", FakeGenerator())
+    incorrect = route_assistant("Vérifie le calcul : 17 × 8 = 120", FakeGenerator())
+    assert correct.route == "deterministic_math_tool_v0.1"
+    assert "égalité correcte" in correct.response
+    assert "résultat attendu : 136" in incorrect.response
+
+
 def test_political_and_economic_capitals_are_distinguished():
     political = route_assistant("Quelle est la capitale de la Côte d’Ivoire ?", FakeGenerator())
     economic = route_assistant("Quelle est la capitale économique ivoirienne ?", FakeGenerator())
