@@ -1,0 +1,18 @@
+{
+  "package_id": "ivoireslm_cpt_v1.1.1_17m_pilot_code",
+  "created_at": "2026-09-03",
+  "pilot_stop_step": 125,
+  "test_opened": false,
+  "supervision_started": false,
+  "files": {
+    "scripts/tokenizer/tokenize_corpus_supplement_v111.py": "cdc2a842202718826e64efd0572411b7fcffedded0d82d8b5a315de697f58ecc",
+    "scripts/tokenizer/tokenize_corpus_supplement_v10.py": "f373c5bf7d254b71eb38a59f35596ac6f9a60281aa60e303d2bbfe1d3d732af5",
+    "scripts/training/continue_pretraining_mix_v111_17m.py": "c018254e3e478c23df3057802336f426fa255df48e160eaf07f33c74235575ca",
+    "scripts/training/continue_pretraining_mix_v10_17m.py": "e349f0d261454ccca674225a2e7dbc0e121a399290b2e95021dff3caf38f3f2e",
+    "scripts/training/train_transformer_ci_v03_17m.py": "8186b6105acac552936c445cd8e7002231dfa195b19c682dab3089dcc8d47c0c",
+    "scripts/training/train_transformer_ci_v04_17m.py": "fc9dbd29f8b5238ca6eee556d6a09484e6874ac5a28584de0a5deba9cf49ca67",
+    "scripts/colab/run_cpt_v111_pilot.py": "e7218d3544c72c243687108c65b971cae9f30f1717c830e11bdc2ec2fb015775",
+    "tests/test_cpt_v111.py": "ab23d8e8403444ba288b42a03b974a5a96ebddfde06c96d7de2ad748700bbd41",
+    "docs/CPT_V111_17M_PILOT.md": "467f5c5d2db4cd71e796272f0ed59c6dc9925ef6e321d86d2850df24a47fcb7f"
+  }
+}

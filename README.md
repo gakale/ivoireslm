@@ -78,3 +78,8 @@ ajoute une collecte officielle de `data.gouv.ci`, sépare la garde CPT de la
 garde SFT conversationnelle et conserve le test final fermé. Le lanceur
 `scripts/colab/run_corpus_v111_ivoirian_collection.py` collecte, construit et
 audite le candidat sans entraîner le modèle.
+
+Une fois la garde CPT validée, le [pilote CPT v1.1.1](docs/CPT_V111_17M_PILOT.md)
+réutilise strictement le BPE v0.4, tokenise le supplément par domaine et limite
+la première continuation à 125 étapes. La supervision et le test final restent
+fermés pendant ce pilote.
