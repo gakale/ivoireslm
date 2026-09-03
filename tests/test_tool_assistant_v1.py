@@ -28,6 +28,12 @@ def test_identity_is_controlled():
     assert "IvoireSLM" in result.response
 
 
+def test_identity_accepts_natural_variant():
+    for question in ("Tu es qui ?", "Tu est qui ?", "Tu t'appel comment ?"):
+        result = route_assistant(question, FakeGenerator())
+        assert result.route == "identity_card_v1"
+
+
 def test_math_is_exact():
     result = route_assistant("Combien font 17 × 8 ?", FakeGenerator())
     assert result.route == "deterministic_math_tool_v0.1"
@@ -65,6 +71,34 @@ def test_explicit_web_request_works_without_checkbox():
         "Cherche sur Internet qui est Marie Curie.", FakeGenerator(), web_search=FakeSearch()
     )
     assert result.route == "wikipedia_search_v1"
+
+
+def test_current_president_requires_fresh_information():
+    guarded = route_assistant("C'est qui le président de la Côte d'Ivoire ?", FakeGenerator())
+    searched = route_assistant(
+        "C'est qui le président de la Côte d'Ivoire ?", FakeGenerator(),
+        internet_enabled=True, web_search=FakeSearch(),
+    )
+    assert guarded.route == "freshness_guard_v1"
+    assert searched.route == "wikipedia_search_v1"
+
+
+def test_abidjan_time_uses_clock_tool():
+    for question in ("Il est quelle heure à Abidjan ?", "Il est qu'elle heure Abidjan ?"):
+        result = route_assistant(question, FakeGenerator())
+        assert result.route == "local_time_tool_v1"
+        assert "UTC+0" in result.response
+        assert result.verified
+
+
+def test_assistant_fallback_stops_obvious_loop():
+    class RepeatingModel(FakeGenerator):
+        def __call__(self, _prompt):
+            return "une même réponse utile une même réponse utile une même réponse utile"
+
+    result = route_assistant("Raconte quelque chose.", RepeatingModel())
+    assert result.response == "une même réponse utile"
+    assert "interrompue" in result.status
 
 
 def test_gradio_controller_keeps_model_only_mode_honest():

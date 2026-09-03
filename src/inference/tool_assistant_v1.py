@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import html
 import json
 import re
@@ -11,6 +12,7 @@ from typing import Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 from tools.math_solver import UnsupportedMathProblem, solve_math_problem
 
@@ -94,7 +96,9 @@ class WikipediaFrenchSearch:
 
 IDENTITY_PATTERNS = (
     r"\b(?:comment (?:tu t'appelles|t'appelles[- ]tu)|quel est ton nom)\b",
+    r"\b(?:tu t'appel(?:les|le)? comment|c'est quoi ton nom)\b",
     r"\bqui es[- ]tu\b",
+    r"\b(?:tu (?:es|est) qui|t'es qui)\b",
     r"\bpresente[- ]toi\b",
     r"\bes[- ]tu (?:une personne|un etre humain|humain)\b",
     r"\bquel est ton role\b",
@@ -108,6 +112,10 @@ CONVERSATION_RULES = (
     (r"\b(?:au revoir|a plus tard|a demain)\b", "D’accord, à bientôt !"),
     (r"\b(?:comment vas tu|ca va)\b", "Je vais bien, merci. Et toi ?"),
     (r"\bje vais bien\b", "Content de l’apprendre !"),
+    (
+        r"\b(?:tu fais quoi|que fais[- ]tu) (?:aujourd'hui|maintenant)\b",
+        "Je suis disponible pour répondre à tes questions et utiliser mes outils.",
+    ),
 )
 
 IVOIRE_SOURCES = {
@@ -189,6 +197,23 @@ def _ivoire_fact(text: str) -> AssistantResponse | None:
     return None
 
 
+def _local_time(text: str) -> AssistantResponse | None:
+    asks_time = bool(re.search(
+        r"\b(?:quelle heure|quel heure|qu'elle heure|heure est[- ]il|il est (?:quelle|quel|qu'elle) heure)\b",
+        text,
+    ))
+    asks_abidjan = bool(re.search(r"\b(?:abidjan|cote d'ivoire|ivoirienne?)\b", text))
+    if not (asks_time and asks_abidjan):
+        return None
+    current = datetime.now(ZoneInfo("Africa/Abidjan"))
+    return AssistantResponse(
+        f"À Abidjan, il est actuellement {current:%H:%M} (heure locale, UTC+0).",
+        "local_time_tool_v1",
+        "✅ heure calculée au moment de la requête",
+        True,
+    )
+
+
 def _internet_requested(text: str) -> bool:
     return bool(re.search(r"\b(?:cherche|recherche|verifie) (?:sur )?(?:internet|le web|wikipedia|en ligne)\b", text))
 
@@ -204,9 +229,29 @@ def _strip_internet_command(request: str) -> str:
 def _looks_factual(text: str) -> bool:
     return bool(re.match(
         r"^(?:qui|que|quoi|quel|quelle|quels|quelles|quand|ou|pourquoi|comment|"
-        r"c'est quoi|qu'est ce|definis|explique)\b",
+        r"c'est quoi|c'est qui|qu'est ce|definis|explique|tu connais|"
+        r"il est (?:quelle|quel|qu'elle) heure)\b",
         text,
     ))
+
+
+def _trim_repetition(response: str) -> tuple[str, bool]:
+    """Interrompt une boucle évidente sans prétendre corriger le fond."""
+    text = " ".join(response.split()).strip()
+    marker = re.search(r"\bAssistant\s*:", text, flags=re.IGNORECASE)
+    if marker:
+        text = text[: marker.start()].strip()
+        return text, True
+    words = text.split()
+    for width in range(3, min(13, len(words) // 2 + 1)):
+        for start in range(0, len(words) - 2 * width + 1):
+            first = [normalize(word) for word in words[start : start + width]]
+            second = [normalize(word) for word in words[start + width : start + 2 * width]]
+            if first == second:
+                return " ".join(words[: start + width]).strip(), True
+    if len(text) > 500:
+        return text[:500].rsplit(" ", 1)[0] + "…", True
+    return text, False
 
 
 def _web_answer(query: str, search: WikipediaFrenchSearch) -> AssistantResponse:
@@ -248,10 +293,22 @@ def route_assistant(
 
     # Les domaines explicites passent avant la conversation : « merci en
     # dioula » est une traduction, pas un remerciement adressé à l'assistant.
-    for route in (_identity, _dioula, _ivoire_fact, _conversation):
+    for route in (_identity, _local_time, _dioula, _ivoire_fact, _conversation):
         result = route(text)
         if result is not None:
             return result
+
+    # Les titulaires de fonctions publiques peuvent changer. On ne conserve
+    # donc pas leur nom dans une règle statique.
+    if re.search(r"\bpresident\b", text) and re.search(r"\b(?:cote d'ivoire|ivoirien)\b", text):
+        if internet_enabled or _internet_requested(text):
+            return _web_answer(_strip_internet_command(original), web_search or WikipediaFrenchSearch())
+        return AssistantResponse(
+            "Cette information peut changer. Active la recherche Internet pour que je consulte une source actuelle.",
+            "freshness_guard_v1",
+            "⚠️ recherche Internet nécessaire",
+            True,
+        )
 
     try:
         solution = solve_math_problem(original)
@@ -275,9 +332,14 @@ def route_assistant(
     response = language_generator(original).strip()
     if not response:
         response = "Je n’ai pas réussi à produire une réponse. Essaie de reformuler la question."
+    response, repetition_stopped = _trim_repetition(response)
     return AssistantResponse(
         response,
         getattr(language_generator, "model_id", "microivoire_transformer_17m"),
-        "⚠️ génération libre du modèle, non vérifiée",
+        (
+            "⚠️ répétition du modèle interrompue ; contenu non vérifié"
+            if repetition_stopped
+            else "⚠️ génération libre du modèle, non vérifiée"
+        ),
         False,
     )
