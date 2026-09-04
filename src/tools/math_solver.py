@@ -103,12 +103,42 @@ def _natural_arithmetic_expression(problem: str) -> tuple[str, Fraction] | None:
     return expression, _safe_arithmetic(tree)
 
 
+def _natural_arithmetic_equality(problem: str) -> tuple[str, Fraction, str, Fraction] | None:
+    """Reconnaît et vérifie une égalité arithmétique entièrement numérique."""
+    text = problem.strip().rstrip("?.!").strip()
+    text = re.sub(
+        r"^(?:(?:calcul|égalité|egalite)\s+(?:vérifié|verifiee?|à vérifier|a verifier)|"
+        r"(?:vérifie|verifie)(?:\s+(?:le calcul|l['’]égalité|l['’]egalite))?)\s*:\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if text.count("=") != 1:
+        return None
+    left_text, right_text = (part.strip() for part in text.split("=", 1))
+    if not left_text or not right_text:
+        return None
+    left = _natural_arithmetic_expression(left_text)
+    right = _natural_arithmetic_expression(right_text)
+    if left is None or right is None:
+        return None
+    return left[0], left[1], right[0], right[1]
+
+
 def solve_math_problem(problem: str) -> MathSolution:
     """Analyse et résout un énoncé pris en charge, sans métadonnée externe."""
     if not isinstance(problem, str) or not problem.strip():
         raise UnsupportedMathProblem("l'énoncé doit être une chaîne non vide")
-    # Uniformiser les signes typographiques fréquemment utilisés en français.
+    # Uniformiser les signes typographiques et retirer les étiquettes souvent
+    # ajoutées par les interfaces ou les utilisateurs. Elles ne font pas partie
+    # de l'énoncé mathématique lui-même.
     problem = problem.replace("−", "-")
+    problem = re.sub(
+        r"^\s*(?:(?:question|probl[eè]me|demande|exercice)\s*:\s*)+",
+        "",
+        problem,
+        flags=re.IGNORECASE,
+    )
 
     match = _fullmatch(rf"Calculer\s+{INTEGER}\s*\+\s*{INTEGER}\s*\.", problem)
     if match:
@@ -130,6 +160,28 @@ def solve_math_problem(problem: str) -> MathSolution:
             "Multiplier les deux facteurs.",
             f"{left} × {right} = {result}.",
             str(result),
+        )
+
+    natural_equality = _natural_arithmetic_equality(problem)
+    if natural_equality:
+        left_text, left_value, right_text, right_value = natural_equality
+        if left_value == right_value:
+            return MathSolution(
+                "arithmetic_verification",
+                "Calculer chaque membre puis comparer les résultats.",
+                f"{left_text} vaut {left_value} et {right_text} vaut {right_value}; l’égalité est correcte.",
+                "égalité correcte",
+            )
+        expected = (
+            str(left_value.numerator)
+            if left_value.denominator == 1
+            else f"{left_value.numerator}/{left_value.denominator}"
+        )
+        return MathSolution(
+            "arithmetic_verification",
+            "Calculer chaque membre puis comparer les résultats.",
+            f"{left_text} vaut {expected}, et non {right_text}; l’égalité est incorrecte.",
+            f"égalité incorrecte ; résultat attendu : {expected}",
         )
 
     natural_arithmetic = _natural_arithmetic_expression(problem)

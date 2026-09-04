@@ -84,6 +84,8 @@ def test_solver_accepts_natural_school_quadratic_notation():
         ("Ça fait combien 2^5 ?", "32"),
         ("(10 - 3) * 4", "28"),
         ("Calculer 1 / 2.", "1/2"),
+        ("Question : Combien font 17 × 8 ?", "136"),
+        ("Problème : Calculer 12 + 7.", "19"),
     ),
 )
 def test_solver_accepts_safe_natural_arithmetic(prompt_text, answer):
@@ -101,6 +103,14 @@ def test_solver_accepts_safe_natural_arithmetic(prompt_text, answer):
 def test_natural_arithmetic_rejects_code_and_unsafe_operations(prompt_text):
     with pytest.raises(UnsupportedMathProblem):
         solve_math_problem(prompt_text)
+
+
+def test_solver_verifies_numeric_equalities():
+    correct = solve_math_problem("Calcul vérifié : 17 × 8 = 136")
+    incorrect = solve_math_problem("Vérifie le calcul : 17 × 8 = 120")
+    assert correct.family == "arithmetic_verification"
+    assert correct.answer == "égalité correcte"
+    assert "136" in incorrect.answer
 
 
 def test_hybrid_router_extracts_problem_from_full_ivoireslm_prompt():

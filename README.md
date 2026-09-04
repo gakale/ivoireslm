@@ -1,85 +1,167 @@
 # IvoireSLM
 
-IvoireSLM est un projet d'entraînement et d'évaluation de petits modèles de langage adaptés aux contextes ivoiriens.
+IvoireSLM est un projet de recherche consacré aux petits modèles de langage adaptés au français et aux contextes ivoiriens. Le dépôt contient toute la chaîne de travail : collecte et audit des données, entraînement, évaluation, inférence et interface de démonstration.
 
-## Structure
+Le modèle actuel compte **17 129 280 paramètres**. Il peut être utilisé seul pour observer ce que les poids ont réellement appris, ou derrière un assistant outillé qui confie les réponses sensibles à des composants déterministes et à des sources identifiées.
 
-- `configs/` : configurations d'expériences.
-- `data/` : données brutes, préparées et tokenisées (non versionnées).
-- `src/` : code source du pipeline.
-- `notebooks/` : expérimentations pédagogiques.
-- `checkpoints/`, `reports/`, `logs/` : sorties d'entraînement et d'évaluation.
+## État actuel
 
-Consultez [la feuille de route](IVOIRESLM_ROADMAP.md) pour les prochaines étapes.
+Le checkpoint de référence est le CPT v1.1.1 à l’étape 500 :
 
-Le journal technique [du Bigram au Transformer 5M](docs/IVOIRESLM_PARCOURS_BIGRAM_A_5M.md) rassemble la chronologie, les résultats, les preuves et les leçons apprises.
+| Élément | Valeur |
+|---|---|
+| Identifiant | `microivoire_transformer_v1.4_17m_cpt_v111_pilot` |
+| Paramètres | 17 129 280 |
+| Tokenizer | BPE v0.4, vocabulaire de 8 192 tokens |
+| Fenêtre de contexte | 512 tokens |
+| Corpus de continuation | `ivoireslm_pretraining_mix_v1.1.1_pilot` |
+| Étape sélectionnée | 500 |
+| Test final | toujours fermé |
 
-La conception de la prochaine phase est décrite dans [l'expérience Transformer 17M v0.3](docs/EXPERIENCE_TRANSFORMER_17M_V03.md).
+Ce checkpoint améliore les validations de français naturel, de conversation et de données ivoiriennes, tout en conservant la qualité mesurée sur le corpus historique. Cela ne suffit pas à en faire un bon chatbot : en génération libre, il répète encore certaines phrases, suit mal des questions simples et peut inventer des faits.
 
-La correction des biais observés est détaillée dans
-[l'expérience corpus v0.8](docs/EXPERIENCE_CORPUS_V08.md) : collecte française
-élargie, plafonnement des gabarits répétitifs et nouveaux contrôles de
-composition.
+Il est donc présenté comme un **checkpoint expérimental**, pas comme un assistant généraliste.
 
-## État du modèle 17M
+## Architecture du modèle 17M
 
-Le pilote de diversification v1.0 a amélioré les losses de validation en
-mathématiques, code, anglais et cybersécurité défensive, sans dépasser la garde
-de rétention du corpus général. Les générations restent néanmoins trop
-répétitives et factuellement fragiles pour présenter ce checkpoint comme un
-assistant conversationnel fiable.
+IvoireSLM 17M est un Transformer causal dense écrit en PyTorch. Il prédit le token suivant à partir des tokens précédents.
 
-- [Décision scientifique à l'étape 1 000](docs/DECISION_CPT_V10_STEP1000.md)
-- [Protocole de continuation de préentraînement](docs/CONTINUATION_PRETRAINING_V10_17M.md)
-- [Fiche de publication Hugging Face](releases/huggingface/microivoire-transformer-v1.0-17m-cpt-pilot/README.md)
+| Composant | Configuration actuelle |
+|---|---:|
+| Blocs Transformer | 12 |
+| Dimension des embeddings | 320 |
+| Têtes d’attention | 8 |
+| Dimension par tête | 40 |
+| Dimension du réseau feed-forward | 832 |
+| Vocabulaire | 8 192 tokens |
+| Contexte maximal | 512 tokens |
+| Normalisation | RMSNorm |
+| Encodage des positions | RoPE |
+| Activation du feed-forward | SwiGLU |
+| Dropout | 0,10 |
+| Embedding et tête de sortie | poids partagés |
 
-La publication des poids est désormais suspendue pendant la qualification du
-micro-assistant. Le protocole, les seuils et la séparation entre le modèle seul
-et le moteur hybride sont décrits dans
-[la qualification du micro-assistant 17M](docs/ASSISTANT_17M_QUALIFICATION_V1.md).
-Les poids ne seront publiés qu'après réussite des contrôles automatiques puis
-d'un test humain de 30 questions.
+Chaque bloc applique deux résidus :
 
-Le test humain du stage 3 a révélé un collapse vers quelques réponses fixes.
-La correction expérimentale repart du checkpoint CPT v1.0 et est décrite dans
-[le stage 4 anti-collapse](docs/ASSISTANT_17M_STAGE4_ANTI_COLLAPSE.md). L'audit
-du corpus qui motive ce choix est conservé dans
-[l'audit de données du stage 4](docs/CORPUS_AUDIT_ASSISTANT_STAGE4.md).
+```text
+tokens
+  │
+  ▼
+embedding partagé (8 192 × 320)
+  │
+  ▼
+12 × [RMSNorm → attention causale + RoPE → résidu
+      RMSNorm → SwiGLU (320 → 832 → 320) → résidu]
+  │
+  ▼
+RMSNorm finale
+  │
+  ▼
+projection vers les 8 192 tokens
+```
 
-Le stage 4 a restauré une partie de la diversité sans produire des réponses
-assez complètes ni assez justes. La décision à l'étape 125 est consignée dans
-[son rapport de décision](docs/ASSISTANT_17M_STAGE4_STEP125_DECISION.md). Le
-[stage 5 « réponse directe »](docs/ASSISTANT_17M_STAGE5_DIRECT_ANSWER.md)
-introduit un curriculum vérifié, une mesure anti-écho et une garde contre les
-réponses d'un seul mot. Il reste expérimental et ne justifie pas encore la
-publication des poids.
+L’attention utilise l’implémentation `scaled_dot_product_attention` de PyTorch. Le modèle n’est ni un MoE ni une adaptation d’un modèle téléchargé : son architecture et sa boucle d’entraînement sont maintenues dans ce dépôt.
 
-Le diagnostic de l'étape 250 a ensuite révélé une suppression accidentelle des
-opérateurs pendant la déduplication des exercices. La nouvelle branche
-[stage 5B ciblée](docs/ASSISTANT_17M_STAGE5B_TARGETED_RECOVERY.md) corrige cette
-cause, rééquilibre conversation, savoirs et prudence, puis limite son premier
-pilote à 125 étapes.
+Le code principal se trouve dans [`scripts/training/train_transformer_ci_v03_17m.py`](scripts/training/train_transformer_ci_v03_17m.py). La configuration v0.4 utilisée comme base est définie dans [`scripts/training/train_transformer_ci_v04_17m.py`](scripts/training/train_transformer_ci_v04_17m.py).
 
-Le résultat du pilote reste insuffisant pour une publication comme assistant.
-La [décision Stage 5B](docs/ASSISTANT_17M_STAGE5B_STEP125_DECISION.md) arrête le
-SFT et demande un retour au préentraînement. L'[audit du corpus
-v1.1](docs/CORPUS_AUDIT_V11_NATURAL_FRENCH.md) mesure un supplément composé à
-89,75 % de mathématiques et définit des seuils bloquants avant toute nouvelle
-continuation : français naturel majoritaire, conversations ivoiriennes
-vérifiées, licences traçables et test final toujours scellé.
+## Entraînement actuel
 
-La collecte correspondante est décrite dans
-[le protocole corpus v1.1](docs/CORPUS_V11_COLLECTION.md). Son lanceur Colab est
-reprenable et construit seulement un candidat audité : il ne déclenche aucun
-entraînement.
+Le checkpoint v1.1.1 prolonge le modèle v0.4 avec un faible taux d’apprentissage. Le mélange reste volontairement majoritaire en données historiques afin de limiter l’oubli.
 
-L'[extension ivoirienne v1.1.1](docs/CORPUS_V111_IVOIRIAN_EXTENSION.md)
-ajoute une collecte officielle de `data.gouv.ci`, sépare la garde CPT de la
-garde SFT conversationnelle et conserve le test final fermé. Le lanceur
-`scripts/colab/run_corpus_v111_ivoirian_collection.py` collecte, construit et
-audite le candidat sans entraîner le modèle.
+| Domaine | Part du mélange |
+|---|---:|
+| Corpus IvoireSLM v0.9 | 70 % |
+| Français naturel ouvert | 20 % |
+| Conversation française ouverte | 5 % |
+| Données ivoiriennes officielles et vérifiées | 5 % |
 
-Une fois la garde CPT validée, le [pilote CPT v1.1.1](docs/CPT_V111_17M_PILOT.md)
-réutilise strictement le BPE v0.4, tokenise le supplément par domaine et limite
-la première continuation à 125 étapes. La supervision et le test final restent
-fermés pendant ce pilote.
+Résultats au palier 500 :
+
+| Validation | Avant CPT | Étape 500 |
+|---|---:|---:|
+| Loss pondérée | 2,8930 | 2,8593 |
+| Corpus général v0.9 | 2,8881 | 2,8867 |
+| Français naturel | 3,0028 | 2,9581 |
+| Conversation française | 3,2449 | 3,0027 |
+| Données ivoiriennes vérifiées | 2,1713 | 1,9380 |
+
+Le détail du protocole est disponible dans [`docs/CPT_V111_17M_PILOT.md`](docs/CPT_V111_17M_PILOT.md).
+
+## Modèle seul et assistant outillé
+
+L’interface expose deux modes distincts.
+
+### Modèle seul
+
+La question est envoyée directement au Transformer 17M. Aucun calculateur, aucune base documentaire et aucune recherche Internet ne corrigent sa sortie. Ce mode sert à évaluer honnêtement le checkpoint. Les réponses peuvent être incomplètes, répétitives ou fausses.
+
+### Assistant outillé
+
+Un routeur examine d’abord la demande, puis choisit le composant adapté :
+
+- calculateur déterministe pour les opérations prises en charge ;
+- fiche locale pour l’identité, la version et les capacités du système ;
+- base vérifiée pour quelques faits institutionnels ivoiriens ;
+- petit lexique dioula validé ;
+- garde de fraîcheur pour les demandes qui exigent une information actuelle ;
+- recherche Wikipédia en français lorsque l’utilisateur autorise Internet ;
+- modèle 17M uniquement lorsqu’aucune route plus fiable ne convient.
+
+L’interface affiche la route réellement utilisée, le niveau de confiance et les sources disponibles. Une réponse issue d’un outil ne prouve pas que le modèle 17M connaissait lui-même l’information.
+
+La conception complète de cette séparation est décrite dans [`docs/TOOL_ASSISTANT_17M_V1.md`](docs/TOOL_ASSISTANT_17M_V1.md).
+
+## Lancer la démonstration
+
+Le lancement Colab de l’assistant outillé utilise :
+
+```bash
+python -u scripts/colab/run_tool_assistant_v1.py
+```
+
+Le script vérifie les empreintes du checkpoint et de l’archive contenant le tokenizer avant de démarrer l’interface Gradio.
+
+Pour travailler directement dans le dépôt :
+
+```bash
+python -m pip install torch tokenizers gradio
+python scripts/inference/gradio_tool_assistant_v1.py \
+  --checkpoint /chemin/vers/best.pt \
+  --data-dir /chemin/vers/bpe_v0.4 \
+  --model-script scripts/training/train_transformer_ci_v04_17m.py \
+  --feedback-file /chemin/vers/feedback.jsonl
+```
+
+## Publication du checkpoint
+
+Un candidat Hugging Face est préparé dans [`releases/huggingface/ivoireslm-17m-cpt-v1.1.1-step500`](releases/huggingface/ivoireslm-17m-cpt-v1.1.1-step500). Les poids sont convertis en `safetensors` et le dépôt est créé en privé par défaut.
+
+La publication publique reste bloquée tant que les conditions suivantes ne sont pas remplies :
+
+- inventaire complet des licences des données ;
+- au moins 90 % de réponses sans boucle répétitive ;
+- réussite des seuils d’identité, de prudence, de compréhension et de suivi de consignes ;
+- au moins 24 réponses acceptables sur 30 pendant le test humain libre.
+
+Les seuils exacts sont définis dans [`docs/ASSISTANT_17M_QUALIFICATION_V1.md`](docs/ASSISTANT_17M_QUALIFICATION_V1.md).
+
+## Organisation du dépôt
+
+```text
+configs/               configurations des expériences
+data/                  données locales non versionnées
+docs/                  protocoles, audits et décisions
+releases/huggingface/  fichiers préparés pour les publications
+scripts/colab/         lanceurs destinés à Google Colab
+scripts/data/          collecte, nettoyage et construction des corpus
+scripts/evaluation/    évaluations automatiques et benchmarks
+scripts/inference/     génération et interfaces Gradio
+scripts/tokenizer/     entraînement et audit des tokenizers
+scripts/training/      architectures et boucles d’entraînement
+```
+
+## Limites
+
+IvoireSLM 17M reste un petit modèle de recherche. Il ne doit pas être utilisé comme source unique d’information ni pour prendre des décisions médicales, juridiques, financières, administratives ou de sécurité. Toute sortie du modèle brut doit être vérifiée.
+
+Le code du projet est distribué sous licence MIT. La licence des poids reste distincte tant que l’inventaire des données n’est pas terminé.
